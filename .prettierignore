@@ -1,0 +1,10 @@
+# Skip generated and dependency artifacts (also covered by .gitignore, here for explicitness)
+**/dist/**
+**/node_modules/**
+.yarn/**
+coverage/**
+.ralphex/**
+
+# Skip lockfiles and yarn internals
+yarn.lock
+.pnp.*

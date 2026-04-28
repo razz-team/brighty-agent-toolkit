@@ -1,0 +1,39 @@
+{
+  "name": "@brighty/mcp-server",
+  "version": "0.1.0",
+  "description": "Brighty MCP server: exposes Brighty banking API as MCP tools (stdio).",
+  "license": "MIT",
+  "bin": {
+    "brighty-mcp": "dist/index.js",
+    "brighty-mcp-login": "dist/cli/login.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "keytar": "^7.9.0",
+    "zod": "^3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

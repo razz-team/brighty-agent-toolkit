@@ -1,0 +1,14 @@
+{
+  "name": "brighty-agent-toolkit",
+  "owner": "razz-team",
+  "plugins": [
+    {
+      "name": "brighty",
+      "source": "./",
+      "category": "fintech",
+      "tags": ["banking", "payments", "fintech", "mcp"],
+      "strict": true,
+      "description": "Brighty banking and payments for Claude — open accounts, run mass payouts, issue cards, and pay invoices through natural language."
+    }
+  ]
+}
