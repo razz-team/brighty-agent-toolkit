@@ -1,0 +1,33 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["typescript", "unicorn", "import"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "perf": "warn",
+    "restriction": "off",
+    "pedantic": "off",
+    "style": "off"
+  },
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/build/**",
+    ".yarn/**",
+    "**/*.tsbuildinfo",
+    "coverage/**",
+    ".ralphex/**"
+  ],
+  "overrides": [
+    {
+      "files": ["**/test/**/*.ts", "**/*.test.ts", "**/*.test.mjs"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ]
+}
