@@ -1,8 +1,8 @@
 {
   "name": "brighty-agent-toolkit",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
-  "description": "Monorepo for the Brighty Anthropic plugin: MCP server + AgentSkills.",
+  "description": "Brighty banking and payments for AI agents: MCP server (stdio) + AgentSkills + Anthropic plugin manifest. Works with Claude Code, Claude Desktop, Codex, Cursor, OpenClaw, and any MCP/AgentSkills-compatible client.",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -21,8 +21,8 @@
     "lint:fix": "oxlint --fix",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "dev:server": "yarn workspace @brighty/mcp-server dev",
-    "login": "yarn workspace @brighty/mcp-server exec brighty-mcp-login"
+    "dev:server": "yarn workspace @brighty-app/mcp-server dev",
+    "login": "yarn workspace @brighty-app/mcp-server exec brighty-mcp-login"
   },
   "devDependencies": {
     "oxfmt": "^0.47.0",

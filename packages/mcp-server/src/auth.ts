@@ -4,7 +4,7 @@ export const KEYCHAIN_ACCOUNT = "default";
 export class MissingApiKeyError extends Error {
   constructor() {
     super(
-      "Brighty API key not found. Set the BRIGHTY_API_KEY environment variable, or run the login CLI to store it in the OS keychain: `yarn login` (local checkout), `brighty-mcp login` (after a global install), or `npx -y -p @brighty/mcp-server brighty-mcp login` (no install).",
+      "Brighty API key not found. Set the BRIGHTY_API_KEY environment variable, or run the login CLI to store it in the OS keychain: `yarn login` (local checkout), `brighty-mcp login` (after a global install), or `npx -y -p @brighty-app/mcp-server brighty-mcp login` (no install).",
     );
     this.name = "MissingApiKeyError";
   }
@@ -24,10 +24,24 @@ export function setKeychainProvider(provider: KeychainProvider | undefined): voi
 
 async function getKeychain(): Promise<KeychainProvider> {
   if (keychainOverride) return keychainOverride;
-  const mod = (await import("keytar")) as unknown as KeychainProvider & {
-    default?: KeychainProvider;
+  // @napi-rs/keyring exposes an Entry class, not the keytar function-style API.
+  // Adapt it to KeychainProvider so the rest of the codebase stays identical.
+  const { Entry } = await import("@napi-rs/keyring");
+  return {
+    async getPassword(service, account) {
+      try {
+        return new Entry(service, account).getPassword();
+      } catch {
+        return null;
+      }
+    },
+    async setPassword(service, account, password) {
+      new Entry(service, account).setPassword(password);
+    },
+    async deletePassword(service, account) {
+      return new Entry(service, account).deletePassword();
+    },
   };
-  return mod.default ?? mod;
 }
 
 export async function getApiKey(): Promise<string> {

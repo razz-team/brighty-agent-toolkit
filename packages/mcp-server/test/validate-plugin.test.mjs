@@ -37,7 +37,7 @@ const validMcpJson = {
     brighty: {
       type: "stdio",
       command: "npx",
-      args: ["-y", "@brighty/mcp-server"],
+      args: ["-y", "@brighty-app/mcp-server"],
     },
   },
 };

@@ -1,7 +1,7 @@
 {
   "name": "brighty",
-  "version": "0.1.0",
-  "description": "Brighty banking and payments for Claude — open accounts, run mass payouts, issue cards, and pay invoices through natural language.",
+  "version": "0.0.1",
+  "description": "Brighty banking and payments for AI agents — open accounts, run mass payouts, issue cards, and pay invoices through natural language.",
   "skills": [
     "skills/brighty-banking",
     "skills/brighty-payouts",

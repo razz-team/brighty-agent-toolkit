@@ -1,4 +1,4 @@
-# @brighty/mcp-server
+# @brighty-app/mcp-server
 
 TypeScript MCP server exposing the Brighty banking API as 24 tools (accounts, members, transfers, payouts, cards) over stdio.
 

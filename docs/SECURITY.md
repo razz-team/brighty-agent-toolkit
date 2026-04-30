@@ -1,9 +1,9 @@
 # Security model
 
-`brighty-agent-toolkit` v0.1 ships only a stdio MCP transport. This document
-describes the credential handling, logging, and threat model for that mode.
-HTTP / hosted / OAuth modes are tracked in the deploy iteration and are
-intentionally out of scope here (see [HTTP, hosted, OAuth](#http-hosted-oauth)).
+`brighty-agent-toolkit` ships a stdio MCP transport and only a stdio
+transport. This document describes the credential handling, logging, and
+threat model for that mode. There is no HTTP/hosted mode — see
+[Out of scope: public HTTP exposure](#out-of-scope-public-http-exposure).
 
 ## Trust boundary (stdio)
 
@@ -19,8 +19,8 @@ from inside the subprocess.
 Credentials never traverse the LLM-untrusted side. They flow:
 
 ```
-operator → BRIGHTY_API_KEY env  ─┐
-operator → keytar (OS keychain) ─┼→ getApiKey() → BrightyClient → api.brighty.app
+operator → BRIGHTY_API_KEY env       ─┐
+operator → OS keychain (@napi-rs/keyring) ─┼→ getApiKey() → BrightyClient → api.brighty.app
 ```
 
 ## API key resolution
@@ -29,10 +29,10 @@ operator → keytar (OS keychain) ─┼→ getApiKey() → BrightyClient → ap
 fixed order. There is no third source:
 
 1. `process.env.BRIGHTY_API_KEY` (trimmed, non-empty wins)
-2. OS keychain via `keytar`, service `brighty-mcp`, account `default`
+2. OS keychain via `@napi-rs/keyring`, service `brighty-mcp`, account `default`
 3. Throw `MissingApiKeyError` with an actionable message pointing at the env
    var and the login CLI in all three install flows (`yarn login`,
-   `brighty-mcp login`, `npx -y -p @brighty/mcp-server brighty-mcp login`)
+   `brighty-mcp login`, `npx -y -p @brighty-app/mcp-server brighty-mcp login`)
 
 No file in `~/.brighty/`, `~/.config/brighty/`, or anywhere else under the
 home directory is read or written. Adding one would re-introduce the
@@ -49,8 +49,8 @@ The CLI:
 
 1. Prompts the operator on the controlling TTY (`node:readline/promises`).
 2. Validates the key with `GET /me` against the Brighty API.
-3. Stores it via `keytar.setPassword("brighty-mcp", "default", key)` only on
-   HTTP 200.
+3. Stores it via `new Entry("brighty-mcp", "default").setPassword(key)` only
+   on HTTP 200.
 4. Logs the masked key (`***1234`) and exits.
 
 A `401` from `/me` aborts without saving and tells the operator the key was
@@ -65,7 +65,7 @@ which performs `GET /me` with the resolved key. Outcomes:
 - 200 → log `[brighty-mcp] auth OK (key ***1234)` to stderr and proceed.
 - 401 → exit non-zero with a message naming the masked key, `BRIGHTY_API_KEY`,
   and the login CLI in all three install flows (`yarn login`,
-  `brighty-mcp login`, `npx -y -p @brighty/mcp-server brighty-mcp login`). The
+  `brighty-mcp login`, `npx -y -p @brighty-app/mcp-server brighty-mcp login`). The
   operator sees the failure immediately instead of getting a silent stream of
   per-tool 401s after the agent connects.
 - Other errors → propagate verbatim.
@@ -156,16 +156,12 @@ Things that are not security issues against this repo:
   client policy concern; the toolkit's role is to surface the call so the
   client can gate it.
 
-## HTTP, hosted, OAuth
+## Out of scope: public HTTP exposure
 
-Out of scope for v0.1. The hosted-mode plan is an OAuth 2.1 façade that
-delegates to an identity provider (Stytch / WorkOS / Auth0 — undecided) and
-exchanges the resulting session for a per-business Brighty Bearer token,
-because the Brighty API itself only accepts static Bearer tokens. That work
-is tracked in the deploy iteration and will land with its own security
-section covering scope-gating, token revocation, and the
-Business-Portal-to-server token provisioning channel.
-
-Until then: do not run this server behind a public HTTP endpoint, do not
-add an HTTP transport, and do not paper over the missing OAuth flow with a
-shared static token across operators.
+The toolkit is designed for a single operator running the MCP server as a
+local subprocess of their agent client. Do not run this server behind a
+public HTTP endpoint, do not add an HTTP transport, and do not share a
+single Brighty API key across operators or hosts. Brighty business API
+keys are bound to a business and a role; multi-operator hosting must use
+per-operator keys at minimum, gated by an authentication layer outside
+this toolkit's scope.

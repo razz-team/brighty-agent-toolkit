@@ -3,7 +3,7 @@
     "brighty": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@brighty/mcp-server@0.1.0", "brighty-mcp"],
+      "args": ["-y", "-p", "@brighty-app/mcp-server@0.0.1", "brighty-mcp"],
       "env": {
         "BRIGHTY_API_KEY": "${BRIGHTY_API_KEY}"
       }

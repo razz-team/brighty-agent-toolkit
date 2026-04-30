@@ -87,7 +87,7 @@ describe("getApiKey", () => {
     expect((err as Error).message).toMatch(/BRIGHTY_API_KEY/);
     expect((err as Error).message).toMatch(/yarn login/);
     expect((err as Error).message).toMatch(/brighty-mcp login/);
-    expect((err as Error).message).toMatch(/npx -y -p @brighty\/mcp-server brighty-mcp login/);
+    expect((err as Error).message).toMatch(/npx -y -p @brighty-app\/mcp-server brighty-mcp login/);
   });
 });
 
