@@ -65,7 +65,7 @@ describe("validateStartupAuth", () => {
     expect(msg).toContain("***9999");
     expect(msg).toMatch(/yarn login/);
     expect(msg).toMatch(/brighty-mcp login/);
-    expect(msg).toMatch(/npx -y -p @brighty\/mcp-server brighty-mcp login/);
+    expect(msg).toMatch(/npx -y -p @brighty-app\/mcp-server brighty-mcp login/);
     expect(msg).not.toContain("rotated-old-key-9999");
     expect(log).not.toHaveBeenCalled();
   });

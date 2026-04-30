@@ -13,7 +13,7 @@ import type { BrightyTool } from "./tools/tool.js";
 import { transfersTools } from "./tools/transfers/index.js";
 
 const SERVER_NAME = "brighty-mcp-server";
-const SERVER_VERSION = "0.1.0";
+const SERVER_VERSION = "0.0.1";
 
 export const ALL_TOOLS: BrightyTool[] = [
   ...accountsTools,
@@ -74,7 +74,7 @@ export async function validateStartupAuth(opts: StartupAuthOptions = {}): Promis
         `Brighty API rejected the API key (key ${masked}, HTTP 401). ` +
           "Set a current BRIGHTY_API_KEY or refresh the keychain entry via the login CLI: " +
           "`yarn login` (local checkout), `brighty-mcp login` (after a global install), " +
-          "or `npx -y -p @brighty/mcp-server brighty-mcp login` (no install).",
+          "or `npx -y -p @brighty-app/mcp-server brighty-mcp login` (no install).",
         { cause: err },
       );
     }

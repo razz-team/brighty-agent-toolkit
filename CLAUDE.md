@@ -10,7 +10,7 @@ This file is loaded automatically by Claude Code, Cursor, and similar tools when
 2. A TypeScript MCP server (`packages/mcp-server/`) — exposes the Brighty banking API as MCP tools (stdio in v0.1)
 3. AgentSkills-spec skills (`skills/`) — teach AI agents how to use those tools effectively
 
-Specialized agents (`agents/`) and slash commands (`commands/`) are planned for v0.2 — not present in v0.1, not declared in `plugin.json`. Self-hosting / HTTP transport / `deploy/` are tracked separately on the roadmap (see `README.md`).
+Specialized agents (`agents/`) and slash commands (`commands/`) are planned for v0.1 — not present in v0.0.1, not declared in `plugin.json`. The server is stdio-only by design; there is no hosted/HTTP mode and one is not planned.
 
 Skills follow the open AgentSkills standard (https://agentskills.io). The plugin wrapper is Anthropic-specific. Same skills work in Codex, Cursor, OpenClaw — the wrapper does not.
 
@@ -74,7 +74,7 @@ Marketplace consumers get updates via `/plugin marketplace update`.
 
 ### Authentication
 
-- The server reads the API key from `BRIGHTY_API_KEY` (env) first, then OS keychain entry `brighty-mcp / default` (via `keytar`). If neither is set, startup fails with `MissingApiKeyError`.
+- The server reads the API key from `BRIGHTY_API_KEY` (env) first, then OS keychain entry `brighty-mcp / default` (via `@napi-rs/keyring`). If neither is set, startup fails with `MissingApiKeyError`.
 - There is **no MCP tool that writes credentials**. `brighty_setup` was deliberately removed — see `docs/SECURITY.md` ("Threat model: prompt-injected credential writes"). Credential mutation is an out-of-band CLI step (`brighty-mcp login`), not an LLM-callable action.
 - The login CLI validates the key against `GET /me` before saving and masks it in any output. The keychain entry is the only persisted secret; there is no `~/.brighty/config.json`.
 - Logs must mask the key. Use `maskApiKey()` from `src/auth.ts` (shows `***<last4>` only) on every surface that mentions the key.
@@ -120,7 +120,7 @@ yarn build                       # build all workspaces
 yarn test                        # run all tests
 ```
 
-HTTP-mode dev server is not yet implemented (v0.1 is stdio-only).
+The server is stdio-only; there is no HTTP transport.
 
 ## When stuck
 

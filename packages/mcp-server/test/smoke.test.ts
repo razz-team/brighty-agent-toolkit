@@ -34,7 +34,7 @@ describe("mcp-server registration", () => {
 describe("mcp-server integration: tools/list", () => {
   it(`returns exactly ${EXPECTED_TOOL_COUNT} tools over the MCP protocol`, async () => {
     // We use InMemoryTransport instead of spawning a real stdio child:
-    // the test stays hermetic (no build, no native keytar load, no env-var
+    // the test stays hermetic (no build, no native keychain load, no env-var
     // dance) while still exercising the full request-routing protocol that
     // a real client would. Real stdio is verified manually with
     // `mcp inspector` per docs/SECURITY.md.
