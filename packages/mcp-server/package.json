@@ -2,15 +2,15 @@
   "name": "@brighty-app/mcp-server",
   "version": "0.0.1",
   "description": "Brighty MCP server: exposes Brighty banking API as MCP tools (stdio).",
+  "homepage": "https://github.com/razz-team/brighty-agent-toolkit/tree/master/packages/mcp-server#readme",
+  "bugs": {
+    "url": "https://github.com/razz-team/brighty-agent-toolkit/issues"
+  },
   "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/razz-team/brighty-agent-toolkit.git",
     "directory": "packages/mcp-server"
-  },
-  "homepage": "https://github.com/razz-team/brighty-agent-toolkit/tree/master/packages/mcp-server#readme",
-  "bugs": {
-    "url": "https://github.com/razz-team/brighty-agent-toolkit/issues"
   },
   "bin": {
     "brighty-mcp": "dist/index.js",

@@ -3,15 +3,15 @@ name: release-mcp
 on:
   push:
     tags:
-      - 'mcp-server-v*'
+      - "mcp-server-v*"
 
 defaults:
   run:
     shell: bash
 
 permissions:
-  contents: write     # для GitHub Release
-  id-token: write     # для npm OIDC + provenance
+  contents: write # для GitHub Release
+  id-token: write # для npm OIDC + provenance
   packages: read
 
 jobs:
