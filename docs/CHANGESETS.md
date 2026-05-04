@@ -1,11 +1,9 @@
 # Working with changesets
 
 This repo uses [Changesets](https://github.com/changesets/changesets)
-to track version bumps and `CHANGELOG.md` entries for the publishable
-package (`@brighty-app/mcp-server`). The actual `npm publish` is
-handled by `release-mcp.yml` on tag push — changesets owns the
-"what's the next version and what changed" half, the release workflow
-owns the "actually publish with provenance" half.
+to track version bumps, `CHANGELOG.md` entries, and the actual `npm
+publish` for `@brighty-app/mcp-server`. One workflow drives the whole
+release: no manual `git tag`, no separate publish step.
 
 ## When to add a changeset
 
@@ -36,11 +34,11 @@ The CLI prompts you to:
    - **minor** — additive changes (a new tool, a new optional input,
      a new skill).
    - **major** — breaking changes (renamed tool, removed input,
-     changed default behaviour). Reserve this for `1.0.0` and
-     beyond; while we're `0.x` use minor for breaks and call it out
-     in the changeset summary.
+     changed default behaviour). Reserve for `1.0.0` and beyond;
+     while we're `0.x` use minor for breaks and put the word
+     "BREAKING" at the start of the summary.
 3. Write a summary. This text lands in `CHANGELOG.md` and the GitHub
-   release notes verbatim. Write it the way you want a future user
+   Release notes verbatim. Write it the way you want a future user
    to read it — what changed, why, what they need to do (if
    anything). One to three sentences is usually right. No "various
    improvements".
@@ -54,39 +52,42 @@ patch for an unrelated fix).
 
 ## What happens after the PR merges
 
-1. Push to `master` triggers `.github/workflows/changesets-release.yml`.
-2. The `changesets/action` action either opens a new "**chore: version
-   packages**" PR or appends to the existing one. The PR:
-   - Bumps `packages/mcp-server/package.json` version per the queued
-     changesets.
-   - Updates `CHANGELOG.md` with the queued summaries.
-   - Runs `scripts/sync-versions.mjs`, which propagates the new
-     version to `.mcp.json`, `.claude-plugin/plugin.json`, the
-     `SERVER_VERSION` constant in `src/index.ts`, the root
-     `package.json`, and the `version` field in every
-     `skills/*/SKILL.md` frontmatter.
-   - Deletes the consumed `.changeset/*.md` files.
-3. Review the PR. The diff is the version bumps, CHANGELOG, and a
-   handful of one-line version updates from the sync script. If
-   anything looks weird, edit the PR — you can also rewrite the
-   CHANGELOG section.
-4. Merge the version-packages PR.
-5. The maintainer who merged it then runs locally:
+The `changesets-release` workflow runs on every push to master and
+behaves differently depending on what's pending:
 
-   ```sh
-   git fetch origin master && git checkout master && git pull
-   PKG_VERSION=$(node -p "require('./packages/mcp-server/package.json').version")
-   git tag "mcp-server-v${PKG_VERSION}"
-   git push origin "mcp-server-v${PKG_VERSION}"
-   ```
+### When changesets are queued (any `.changeset/*.md` files present)
 
-   The tag push triggers `release-mcp.yml` which does the actual
-   `npm publish --provenance --access public` and creates a GitHub
-   Release with notes from the `CHANGELOG.md` section.
+It opens or updates a "**chore: version packages**" PR. That PR:
 
-This last manual step exists on purpose: the maintainer is
-explicitly attesting "I'm comfortable cutting this release". It's a
-single command and you can wrap it in a script if you want.
+- Bumps `packages/mcp-server/package.json` per the queued changesets.
+- Updates `CHANGELOG.md` with the queued summaries (with PR links,
+  thanks to `@changesets/changelog-github`).
+- Runs `scripts/sync-versions.mjs`, which propagates the new version
+  to `.mcp.json`, `.claude-plugin/plugin.json`, the `SERVER_VERSION`
+  constant in `src/index.ts`, the root `package.json`, and the
+  `version` field in every `skills/*/SKILL.md` frontmatter.
+- Deletes the consumed `.changeset/*.md` files.
+
+Review the PR, edit if needed, then merge.
+
+### When the version PR merges (no changesets pending, bumped versions on master)
+
+The same workflow runs again on the merge commit. This time,
+`changesets/action` sees no pending changesets but a fresh version
+on `package.json`, so it executes `yarn release`:
+
+1. Builds `packages/mcp-server` (`tsc`).
+2. Runs `changeset publish`, which calls `npm publish --provenance
+--access public` for the bumped package — provenance attestation
+   is generated via the `id-token: write` permission and the
+   trusted-publisher config on npmjs.com.
+3. Creates a git tag `mcp-server@<version>` and a matching GitHub
+   Release with the `CHANGELOG.md` section as the release notes.
+
+That's the release. Merging the version PR is the entire ceremony —
+no `git tag` step, no `npm publish` from a laptop. The npm package
+appears on npmjs.com with the green provenance badge a few seconds
+later.
 
 ## What the sync script does
 
@@ -132,15 +133,22 @@ formatting, an empty changeset is fine.
 
 **Q: What about breaking changes mid-`0.x`?**
 Use a minor bump and put the word "BREAKING" at the start of the
-summary so it stands out in the CHANGELOG. We graduate to semver
-majors at `1.0.0`.
+summary. We graduate to semver majors at `1.0.0`.
 
-**Q: Can I tag without merging the version PR?**
-Don't. The workflow expects the version-packages PR to land first,
-because that's what produces the version bump and CHANGELOG entry
-that the release notes will be drawn from.
+**Q: Can I cut a hotfix without going through a changeset PR?**
+Yes — you'd skip the changesets path and `npm publish` from a clean
+checkout manually, the same way the very first `0.0.1` was published.
+That's the emergency path; for everything else, the changesets
+workflow is faster and produces a real CHANGELOG entry.
 
 **Q: What if the sync-versions step gets out of sync?**
 Run `node scripts/sync-versions.mjs` manually. It reads
 `packages/mcp-server/package.json` as the source of truth and
 propagates from there. Open a separate PR if the drift is large.
+
+**Q: Can the same workflow really do both "open version PR" and
+"publish on merge"?**
+Yes — `changesets/action@v1` switches modes based on whether
+`.changeset/*.md` files exist. With files, it opens the PR. Without
+files (i.e. they were just consumed by a merged version PR), it
+runs `yarn release`. One workflow, both behaviours.

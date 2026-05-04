@@ -1,13 +1,21 @@
 name: changesets-release
 
-# Opens a "Version Packages" PR that bumps versions, updates
-# CHANGELOG.md, and runs scripts/sync-versions.mjs to propagate the
-# bump to .mcp.json / plugin.json / SERVER_VERSION / skills. The PR is
-# *not* the publish event — when it lands on master, the maintainer
-# tags the resulting commit (mcp-server-v<version>) and pushes the tag,
-# which triggers release-mcp.yml to do the actual `npm publish
-# --provenance`. This split keeps provenance attestation tied to the
-# tag-and-publish moment instead of the version-bump moment.
+# Two-mode workflow:
+#
+# 1. Push to master with queued changesets present →
+#    open or update a "version packages" PR. The PR bumps versions,
+#    updates CHANGELOG.md, and runs scripts/sync-versions.mjs to
+#    propagate the bump to .mcp.json / plugin.json / SERVER_VERSION /
+#    skills.
+#
+# 2. Push to master AFTER the version-packages PR merges (no
+#    changesets pending, but bumped package.json) →
+#    `yarn release` builds the package, runs `changeset publish`
+#    which calls `npm publish --provenance --access public` per
+#    bumped package and creates the matching git tag.
+#
+# Both modes are handled by the same `changesets/action@v1` step
+# based on whether changeset files are present or not.
 
 on:
   push:
@@ -25,12 +33,18 @@ concurrency:
 permissions:
   contents: write
   pull-requests: write
+  id-token: write # required for npm provenance via OIDC trusted publisher
 
 jobs:
-  release-pr:
+  release:
     runs-on: [self-hosted, Linux, X64, large]
     env:
       CI: true
+      # Tells `npm publish` (called by `changeset publish`) to attach a
+      # provenance statement. Requires id-token: write permission above
+      # and the workflow filename to be registered as the trusted
+      # publisher for @brighty-app/mcp-server on npmjs.com.
+      NPM_CONFIG_PROVENANCE: "true"
     steps:
       - name: checkout
         uses: actions/checkout@v6
@@ -40,16 +54,13 @@ jobs:
       - name: install
         run: yarn install --immutable
 
-      - name: open or update version-packages PR
+      - name: open version PR or publish
         uses: changesets/action@v1
         with:
-          # `version` runs `yarn version` per package.json scripts,
-          # which is `changeset version && node scripts/sync-versions.mjs`.
           version: yarn version
-          # Do NOT publish from this workflow — release-mcp.yml owns that
-          # via tag push.
-          publish: ""
+          publish: yarn release
           title: "chore: version packages"
           commit: "chore: version packages"
+          createGithubReleases: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

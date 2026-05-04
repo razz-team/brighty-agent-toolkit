@@ -24,7 +24,8 @@
     "dev:server": "yarn workspace @brighty-app/mcp-server dev",
     "login": "yarn workspace @brighty-app/mcp-server exec brighty-mcp-login",
     "changeset": "changeset",
-    "version": "changeset version && node scripts/sync-versions.mjs"
+    "version": "changeset version && node scripts/sync-versions.mjs",
+    "release": "yarn workspace @brighty-app/mcp-server build && changeset publish"
   },
   "devDependencies": {
     "@changesets/changelog-github": "^0.6.0",
