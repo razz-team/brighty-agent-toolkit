@@ -15,8 +15,11 @@ export const removeMembers = defineBrightyTool({
     "Remove one or more members from the authenticated Brighty business. The acting key must have an admin-grade role. This is irreversible; removed members can be re-invited later.",
   inputSchema,
   execute: async (client, args) => {
+    // Brighty API field name is `members` (UUID array), not `memberIds`.
+    // We keep the tool input as `memberIds` for clarity to the agent, then
+    // rename in the body.
     await client.post<void>("/members/remove", {
-      body: { memberIds: args.memberIds },
+      body: { members: args.memberIds },
     });
     return {
       removed: args.memberIds,

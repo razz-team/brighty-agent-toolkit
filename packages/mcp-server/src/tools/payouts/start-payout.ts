@@ -1,7 +1,12 @@
 import { z } from "zod";
 
 import type { BrightyClient } from "../../api/client.js";
-import type { Account, Money, Payout, PayoutTransfer } from "../../types/brighty.js";
+import type {
+  Account,
+  GetPayoutResponse,
+  Money,
+  PayoutTransferDetailed,
+} from "../../types/brighty.js";
 import { asTextResult, defineBrightyTool } from "../tool.js";
 
 // Fixed scale large enough to cover both fiat (2 dp) and crypto (≤18 dp) amounts.
@@ -66,14 +71,14 @@ interface AccountAggregate {
 
 export async function runPreflightBalanceCheck(
   client: BrightyClient,
-  payout: Payout,
+  payoutResponse: GetPayoutResponse,
 ): Promise<PreflightResult> {
-  const transfers = payout.transfers ?? [];
+  const transfers = payoutResponse.transfers ?? [];
   const required = new Map<string, AccountAggregate>();
 
-  for (const transfer of transfers as PayoutTransfer[]) {
+  for (const transfer of transfers as PayoutTransferDetailed[]) {
     const accId = transfer.sourceAccountId;
-    if (!accId) continue;
+    if (!accId || !transfer.amount) continue;
     const cur = required.get(accId);
     const amountScaled = toScaled(transfer.amount.amount);
     if (cur) {
@@ -96,20 +101,20 @@ export async function runPreflightBalanceCheck(
 
   for (const [accountId, agg] of required) {
     const account = await client.get<Account>(`/accounts/${encodeURIComponent(accountId)}`);
-    const availableSource = account.availableBalance ?? account.balance;
-    if (availableSource.currency !== agg.currency) {
+    const balance = account.balance;
+    if (balance.currency !== agg.currency) {
       throw new Error(
-        `Account ${accountId} currency (${availableSource.currency}) does not match transfer currency (${agg.currency}).`,
+        `Account ${accountId} currency (${balance.currency}) does not match transfer currency (${agg.currency}).`,
       );
     }
-    const availableScaled = toScaled(availableSource.amount);
+    const availableScaled = toScaled(balance.amount);
     const requiredMoney: Money = {
       amount: fromScaled(agg.scaled),
       currency: agg.currency,
     };
     const availableMoney: Money = {
-      amount: availableSource.amount,
-      currency: availableSource.currency,
+      amount: balance.amount,
+      currency: balance.currency,
     };
     if (availableScaled < agg.scaled) {
       shortfalls.push({
@@ -145,10 +150,19 @@ export interface StartPayoutBlocked {
   shortfalls: PreflightShortfall[];
 }
 
-export type StartPayoutResult = Payout | StartPayoutBlocked;
+export type StartPayoutResult = { ok: true } | StartPayoutBlocked;
 
 const inputSchema = z.object({
-  payoutId: z.string().min(1).describe("Brighty payout id to start. Must currently be in DRAFT."),
+  payoutId: z
+    .string()
+    .min(1)
+    .describe("Brighty payout id to start. Must currently be in CREATED state."),
+  createdAt: z
+    .string()
+    .min(1)
+    .describe(
+      "Payout's createdAt timestamp (ISO Instant). Required by the Brighty API; pass the value returned from brighty_create_payout / brighty_list_payouts.",
+    ),
   skipPreflight: z
     .boolean()
     .optional()
@@ -160,13 +174,15 @@ const inputSchema = z.object({
 export const startPayout = defineBrightyTool<typeof inputSchema.shape, StartPayoutResult>({
   name: "brighty_start_payout",
   description:
-    "Commit a DRAFT payout — Brighty starts processing every attached transfer. Before calling the API, this tool runs a local preflight balance check: fetch the payout's transfers, sum amounts per source account, fetch each source account's available balance, and abort if any account is short. Set skipPreflight=true only when the user has explicitly accepted partial-failure risk.",
+    "Commit a payout — Brighty starts processing every attached transfer. Before calling the API, this tool runs a local preflight balance check: fetch the payout's transfers, sum amounts per source account, fetch each source account's balance, and abort if any account is short. Set skipPreflight=true only when the user has explicitly accepted partial-failure risk. Returns { ok: true } on success (the API returns 204 No Content).",
   inputSchema,
   execute: async (client, args) => {
-    const payout = await client.get<Payout>(`/payouts/${encodeURIComponent(args.payoutId)}`);
-
     if (!args.skipPreflight) {
-      const preflight = await runPreflightBalanceCheck(client, payout);
+      const payoutResponse = await client.get<GetPayoutResponse>(
+        `/payouts/${encodeURIComponent(args.payoutId)}`,
+        { query: { createdAt: args.createdAt } },
+      );
+      const preflight = await runPreflightBalanceCheck(client, payoutResponse);
       if (!preflight.ok) {
         return {
           ok: false,
@@ -177,10 +193,10 @@ export const startPayout = defineBrightyTool<typeof inputSchema.shape, StartPayo
       }
     }
 
-    const started = await client.post<Payout>(
-      `/payouts/${encodeURIComponent(args.payoutId)}/start`,
-    );
-    return started;
+    await client.post<void>(`/payouts/${encodeURIComponent(args.payoutId)}/start`, {
+      query: { createdAt: args.createdAt },
+    });
+    return { ok: true };
   },
   // Render a blocked preflight as an MCP error result so the agent sees the
   // structured per-account shortfall list (the SDK only forwards `error.message`

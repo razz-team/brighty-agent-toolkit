@@ -13,12 +13,19 @@ const inputSchema = z.object({
     .max(8)
     .describe("ISO-4217 currency or supported crypto ticker, e.g. EUR or BTC."),
   name: z.string().min(1).max(120).optional().describe("Optional human-friendly label."),
+  holderId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe(
+      "Optional account holder id (UUID). Defaults to the authenticated business id when omitted.",
+    ),
 });
 
 export const createAccount = defineBrightyTool({
   name: "brighty_create_account",
   description:
-    "Open a new Brighty account for the authenticated business. Specify the account type and currency; an optional name labels the account in the UI.",
+    "Open a new Brighty account for the authenticated business. Specify the account type and currency; optionally a human-friendly name and an explicit holderId (defaults to the business). Returns the full Account on 201.",
   inputSchema,
   execute: async (client, args) =>
     client.post<Account>("/accounts", {
@@ -26,6 +33,7 @@ export const createAccount = defineBrightyTool({
         type: args.type,
         currency: args.currency,
         ...(args.name !== undefined ? { name: args.name } : {}),
+        ...(args.holderId !== undefined ? { holderId: args.holderId } : {}),
       },
     }),
 });

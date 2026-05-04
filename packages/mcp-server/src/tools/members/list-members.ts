@@ -1,26 +1,27 @@
 import { z } from "zod";
 
-import type { Member } from "../../types/brighty.js";
+import type { ListMembersResponse, Member } from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 
 const inputSchema = z.object({
-  status: z.enum(["ACTIVE", "INVITED", "REMOVED"]).optional().describe("Filter by member status."),
-  role: z
-    .enum(["OWNER", "ADMIN", "ACCOUNTANT", "EMPLOYEE"])
+  withTerminated: z
+    .boolean()
     .optional()
-    .describe("Filter by member role."),
+    .describe("Include terminated members in the result. Defaults to false."),
 });
 
 export const listMembers = defineBrightyTool({
   name: "brighty_list_members",
   description:
-    "List members of the authenticated Brighty business. Returns each member's email, role, and status. Use this to find a member id before adding or removing teammates.",
+    "List members of the authenticated Brighty business. Returns each member as { contact, customer, legalData, membership: { memberId, role, state } } where role is one of MEMBER | VIEWER | PAYER | ADMIN | OWNER. The only filter the API accepts is `withTerminated`; filter by role/email client-side if needed.",
   inputSchema,
-  execute: async (client, args) =>
-    client.get<Member[]>("/members", {
+  execute: async (client, args) => {
+    const response = await client.get<ListMembersResponse>("/members", {
       query: {
-        status: args.status,
-        role: args.role,
+        withTerminated: args.withTerminated,
       },
-    }),
+    });
+    const members: Member[] = response.members ?? [];
+    return members;
+  },
 });

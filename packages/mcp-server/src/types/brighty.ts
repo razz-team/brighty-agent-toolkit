@@ -1,33 +1,34 @@
-// Brighty domain types. Field shapes mirror the Brighty REST API as exposed
-// by api.brighty.app. Optional fields are typed as `T | undefined` to keep
-// strict + exactOptionalPropertyTypes ergonomic for tool handlers that
-// forward partial server responses.
+// Brighty Business API domain types. Field shapes mirror the OpenAPI 3.1.0
+// spec served at https://apidocs.brighty.app/openapi.json. Optional fields
+// are typed as `T | undefined` to keep strict + exactOptionalPropertyTypes
+// ergonomic for tool handlers that forward partial server responses.
 
 export interface Money {
   amount: string;
   currency: string;
 }
 
-export type AccountType = "CURRENT" | "SAVING";
-
-export type AccountStatus = "ACTIVE" | "TERMINATED" | "PENDING" | "BLOCKED";
+export type CustomerAccountType = "CURRENT" | "SAVING";
+// Back-compat alias retained for older imports; new code should use CustomerAccountType.
+export type AccountType = CustomerAccountType;
 
 export interface Account {
   id: string;
-  name?: string;
-  type: AccountType;
-  currency: string;
   balance: Money;
-  availableBalance?: Money;
-  status: AccountStatus;
-  isPrimary?: boolean;
-  createdAt: string;
-  updatedAt?: string;
+  holderId: string;
+  ownerId: string;
+  openedAt: string;
+  type: CustomerAccountType;
+  name?: string;
 }
+
+export type AccountAddressDesignation = "UNIVERSAL" | "SALARY" | "PERSONAL" | "VOID";
 
 export interface AccountAddress {
   accountId: string;
   currency: string;
+  type?: string;
+  designation?: AccountAddressDesignation;
   iban?: string;
   bic?: string;
   bankName?: string;
@@ -43,11 +44,52 @@ export interface AccountAddress {
   memo?: string;
 }
 
-export type PayoutStatus = "DRAFT" | "RUNNING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export type PayoutState = "CREATED" | "STARTED" | "COMPLETED";
 
-export type PayoutTransferStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED" | "CANCELLED";
+export interface Payout {
+  id: string;
+  createdAt: string;
+  state: PayoutState;
+  paidTransfers: number;
+  totalTransfers: number;
+  name?: string;
+  description?: string;
+  paidAmount?: Money;
+  totalAmount?: Money;
+  startedAt?: string;
+  completedAt?: string;
+}
 
-export type PayoutTransferKind = "INTERNAL" | "EXTERNAL";
+export interface GetPayoutsResponse {
+  payouts: Payout[];
+  nextPage?: string;
+}
+
+export type PayoutTransferType = "Crypto" | "Fiat" | "Internal";
+
+export interface PayoutTransferDetailed {
+  type: PayoutTransferType;
+  id?: string;
+  sourceAccountId?: string;
+  amount?: Money;
+  reference?: string;
+  comment?: string;
+  receiverUsername?: string;
+  beneficiaryId?: string;
+  state?: string;
+  createdAt?: string;
+  [key: string]: unknown;
+}
+
+export interface GetPayoutResponse {
+  payout: Payout;
+  transfers: PayoutTransferDetailed[];
+}
+
+export interface TransferPostponedResponse {
+  id: string;
+  createdAt: string;
+}
 
 export type TransferNetworkId =
   | "SEPA"
@@ -83,75 +125,56 @@ export interface CryptoBeneficiary {
 
 export type Beneficiary = FiatBeneficiary | CryptoBeneficiary;
 
-export interface PayoutTransfer {
-  id: string;
-  payoutId: string;
-  kind: PayoutTransferKind;
-  status: PayoutTransferStatus;
-  sourceAccountId: string;
-  amount: Money;
-  reference?: string;
-  recipientAccountId?: string;
-  recipientTag?: string;
-  beneficiary?: Beneficiary;
-  idempotencyKey?: string;
-  failureReason?: string;
-  createdAt: string;
-  updatedAt?: string;
-}
+export type CardState = "ISSUED" | "CREATED" | "ACTIVE" | "ACTIVATING" | "FROZEN" | "TERMINATED";
+// Back-compat alias
+export type CardStatus = CardState;
 
-export interface Payout {
+export type CardType = "DEBIT" | "CREDIT" | "PREPAID";
+
+export type CardNetwork = "VISA" | "MASTERCARD";
+
+export type FormFactor = "VIRTUAL" | "PLASTIC" | "METAL";
+// Back-compat alias for older callers using `kind`.
+export type CardKind = FormFactor;
+
+export interface CardDesign {
   id: string;
   name?: string;
-  status: PayoutStatus;
-  totalsByCurrency?: Money[];
-  transfersCount?: number;
-  transfers?: PayoutTransfer[];
-  createdAt: string;
-  updatedAt?: string;
-  startedAt?: string;
-  completedAt?: string;
+  formFactor?: FormFactor;
+  imageUrl?: string;
+  available?: boolean;
 }
 
-export type CardStatus = "ACTIVE" | "FROZEN" | "TERMINATED" | "PENDING" | "ORDERED";
-
-export type CardKind = "VIRTUAL" | "PHYSICAL";
+export type CardLimitsName = "UNLIMITED" | "MONTHLY";
 
 export interface CardLimits {
-  daily?: Money;
-  monthly?: Money;
+  name: CardLimitsName;
+  limit?: Money;
 }
 
 export interface Card {
   id: string;
-  kind: CardKind;
-  status: CardStatus;
-  accountId: string;
-  currency: string;
-  last4?: string;
-  expirationMonth?: number;
-  expirationYear?: number;
-  designId?: string;
-  cardholderName?: string;
-  limits?: CardLimits;
-  createdAt: string;
-  updatedAt?: string;
-}
-
-export interface CardDesign {
-  id: string;
   name: string;
-  kind: CardKind;
-  imageUrl?: string;
-  available: boolean;
-}
-
-export interface VirtualCardProduct {
-  id: string;
-  currency: string;
-  monthlyFee?: Money;
-  issuanceFee?: Money;
-  designs?: CardDesign[];
+  type: CardType;
+  network: CardNetwork;
+  formFactor: FormFactor;
+  status: CardState;
+  cardOwnerId: string;
+  cardHolderId: string;
+  cardHolderName: string;
+  cardDesign: CardDesign;
+  createdAt: string;
+  bin?: string;
+  lastFour?: string;
+  availableAmount?: Money;
+  limitAmount?: Money;
+  activatedAt?: string;
+  issuedAt?: string;
+  expirationDate?: string;
+  statusReason?: string;
+  spendingLimit?: unknown;
+  spendingStrategy?: unknown;
+  securityPolicy?: unknown;
 }
 
 export interface CardOrderFee {
@@ -161,35 +184,79 @@ export interface CardOrderFee {
 
 export interface CardOrderIntent {
   hash: string;
-  kind: CardKind;
-  accountId: string;
-  currency?: string;
-  designId?: string;
-  cardholderName?: string;
-  limits?: CardLimits;
-  fees?: CardOrderFee[];
-  product?: VirtualCardProduct;
-  expiresAt?: string;
+  amount: Money;
+  fees: Record<string, unknown>;
+  holderNameValidity?: unknown;
+  remainingLimits?: unknown;
 }
 
-export type MemberRole = "OWNER" | "ADMIN" | "ACCOUNTANT" | "EMPLOYEE";
+export interface CardOrderResponse {
+  card: Card;
+}
 
-export type MemberStatus = "ACTIVE" | "INVITED" | "REMOVED";
+export interface CardProductCondition {
+  id?: string;
+  code?: string;
+  formFactor?: FormFactor;
+  cardType?: CardType;
+  cardIssuer?: string;
+  freeLimit?: number;
+  totalLimit?: number;
+  issueFee?: Money;
+  deliveryFee?: Money;
+  usage?: unknown;
+}
+
+export interface CardProduct {
+  conditions: CardProductCondition[];
+}
+
+export interface CardProductResponse {
+  product: CardProduct;
+}
+// Back-compat alias for older callers using VirtualCardProduct.
+export type VirtualCardProduct = CardProduct;
+
+export type MembershipRole = "MEMBER" | "VIEWER" | "PAYER" | "ADMIN" | "OWNER";
+// Back-compat alias retained for older imports.
+export type MemberRole = MembershipRole;
+
+export interface MembershipState {
+  memberId: string;
+  role: MembershipRole;
+  state: string;
+}
+// Back-compat name; AddMembers returns this list.
+export type AddMembersResponse = MembershipState[];
 
 export interface Member {
-  id: string;
-  email: string;
-  name?: string;
-  role: MemberRole;
-  status: MemberStatus;
-  invitedAt?: string;
-  joinedAt?: string;
+  contact?: unknown;
+  customer?: unknown;
+  legalData?: unknown;
+  membership: MembershipState;
 }
 
-export interface MemberInvitation {
+export interface MemberData {
   email: string;
-  role: MemberRole;
-  name?: string;
+  role: MembershipRole;
+  birthInfo?: unknown;
+  legalName?: unknown;
+  nationality?: string;
+}
+
+export type TransferSide = "SELL" | "BUY";
+
+export interface OwnTransferIntentRequest {
+  amount: Money;
+  side: TransferSide;
+  sourceCurrency: string;
+  targetCurrency: string;
+}
+
+export interface Quote {
+  sourceAmount: Money;
+  targetAmount: Money;
+  fx?: unknown;
 }
 
 export interface TransferIntentFee {
@@ -197,51 +264,50 @@ export interface TransferIntentFee {
   amount: Money;
 }
 
-export interface TransferIntent {
+export interface OwnTransferIntent {
+  amount: Money;
+  quote: Quote;
+  fees: TransferIntentFee[];
+  deliveryInfo: { estimatedDeliveryDate: string };
   hash: string;
-  sourceAccountId: string;
-  destinationAccountId?: string;
-  destinationCurrency?: string;
-  fromAmount: Money;
-  toAmount: Money;
-  rate?: string;
-  fees?: TransferIntentFee[];
-  expiresAt?: string;
 }
+// Back-compat alias for older imports.
+export type TransferIntent = OwnTransferIntent;
 
-export type OwnTransferStatus = "PENDING" | "PROCESSING" | "COMPLETED" | "FAILED";
-
-export interface OwnTransfer {
-  id: string;
-  hash?: string;
-  sourceAccountId: string;
-  destinationAccountId: string;
-  fromAmount: Money;
-  toAmount: Money;
-  rate?: string;
-  fees?: TransferIntentFee[];
-  status: OwnTransferStatus;
-  idempotencyKey?: string;
+export interface OwnTransferCreated {
+  transactionId: string;
+  transactionState: string;
   createdAt: string;
-  completedAt?: string;
+}
+// Back-compat alias for older imports.
+export type OwnTransfer = OwnTransferCreated;
+
+export interface ListAccountsResponse {
+  accounts: Account[];
 }
 
+export interface ListAccountAddressesResponse {
+  addresses: AccountAddress[];
+}
+
+export interface ListMembersResponse {
+  members: Member[];
+}
+
+export interface ListCardsResponse {
+  cards: Card[];
+}
+
+export interface ListCardDesignsResponse {
+  cardDesigns: CardDesign[];
+}
+
+// Brighty's universal error envelope. Every 4xx/5xx body looks like this —
+// see https://apidocs.brighty.app/docs/api/schemas/apierror. There is no
+// top-level `message` field; human text lives in `description`.
 export interface ApiError {
-  name?: string;
-  message?: string;
-  description?: string;
-  status?: number;
-  code?: string;
-}
-
-export interface PaginationCursor {
-  next?: string;
-  prev?: string;
-}
-
-export interface PaginatedResponse<T> {
-  items: T[];
-  total?: number;
-  cursor?: PaginationCursor;
-  hasMore?: boolean;
+  errorCode: number;
+  name: string;
+  description: string;
+  params?: Record<string, unknown>;
 }

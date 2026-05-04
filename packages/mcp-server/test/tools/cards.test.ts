@@ -4,7 +4,7 @@ import { type BrightyClient } from "../../src/api/client.js";
 import { cardsTools } from "../../src/tools/cards/index.js";
 import { orderCard, runOrderCard, type OrderCardResult } from "../../src/tools/cards/order-card.js";
 import { setCardLimits } from "../../src/tools/cards/set-card-limits.js";
-import type { Card, CardOrderIntent } from "../../src/types/brighty.js";
+import type { Card, CardOrderIntent, CardOrderResponse } from "../../src/types/brighty.js";
 
 type ClientMethods = "get" | "post" | "put" | "patch" | "delete" | "request";
 
@@ -24,7 +24,7 @@ function makeClient(overrides: Partial<Record<ClientMethods, unknown>> = {}): {
     patch: overrides.patch ?? vi.fn(),
     delete: overrides.delete ?? vi.fn(),
     request: overrides.request ?? vi.fn(),
-    getBaseUrl: () => "https://api.brighty.app",
+    getBaseUrl: () => "https://api.brighty.app/business/v1",
   };
   return {
     client: stub as unknown as BrightyClient,
@@ -53,8 +53,6 @@ describe("cards/index barrel", () => {
     for (const t of cardsTools) {
       expect(t.name).toMatch(/^brighty_[a-z_]+$/);
       expect(typeof t.handler).toBe("function");
-      // Top-level inputSchema must be a plain z.object so registerAllTools
-      // can introspect .shape — confirms no .refine() at the root.
       expect(t.inputSchema.shape).toBeDefined();
     }
   });
@@ -64,42 +62,45 @@ describe("brighty_order_card — two-step intent → order", () => {
   function fixtureIntent(hash = "h_card"): CardOrderIntent {
     return {
       hash,
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
-      currency: "EUR",
-      designId: "design_1",
-      fees: [{ description: "issuance", amount: { amount: "5.00", currency: "EUR" } }],
+      amount: { amount: "5.00", currency: "EUR" },
+      fees: { issuance: { amount: "5.00", currency: "EUR" } },
     };
   }
 
   function fixtureCard(): Card {
     return {
       id: "card_1",
-      kind: "VIRTUAL",
+      name: "Team card",
+      type: "DEBIT",
+      network: "VISA",
+      formFactor: "VIRTUAL",
       status: "ACTIVE",
-      accountId: "acc_eur",
-      currency: "EUR",
-      last4: "1234",
-      designId: "design_1",
+      cardOwnerId: "owner_1",
+      cardHolderId: "holder_1",
+      cardHolderName: "Jane Doe",
+      cardDesign: { id: "design_1" },
       createdAt: "2026-04-27T10:00:00Z",
+      lastFour: "1234",
     };
   }
 
-  it("calls /cards/order/intent first, then /cards/order forwarding the hash with a UUIDv4 idempotency key", async () => {
+  function fixtureOrderResponse(): CardOrderResponse {
+    return { card: fixtureCard() };
+  }
+
+  it("calls /cards/order/intent first, then /cards/order forwarding hash + fees + sourceAccountId with a UUIDv4 idempotency key", async () => {
     const intent = fixtureIntent();
-    const card = fixtureCard();
+    const orderResponse = fixtureOrderResponse();
     const { client, post } = makeClient();
-    post.mockResolvedValueOnce(intent).mockResolvedValueOnce(card);
+    post.mockResolvedValueOnce(intent).mockResolvedValueOnce(orderResponse);
 
     const args = orderCard.inputSchema.parse({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
-      designId: "design_1",
-      cardholderName: "Jane Doe",
-      limits: {
-        daily: { amount: "100.00", currency: "EUR" },
-        monthly: { amount: "2000.00", currency: "EUR" },
-      },
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
+      holderName: "Jane Doe",
+      cardName: "Team card",
+      spendingLimit: { policy: "MONTHLY", limit: { amount: "2000.00", currency: "EUR" } },
     });
 
     const result = (await orderCard.execute(client, args)) as OrderCardResult;
@@ -109,58 +110,90 @@ describe("brighty_order_card — two-step intent → order", () => {
     const [firstPath, firstOpts] = post.mock.calls[0]!;
     expect(firstPath).toBe("/cards/order/intent");
     expect(firstOpts.body).toEqual({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
-      designId: "design_1",
-      cardholderName: "Jane Doe",
-      limits: {
-        daily: { amount: "100.00", currency: "EUR" },
-        monthly: { amount: "2000.00", currency: "EUR" },
-      },
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      holderName: "Jane Doe",
     });
     expect(firstOpts.idempotencyKey).toBeUndefined();
 
     const [secondPath, secondOpts] = post.mock.calls[1]!;
     expect(secondPath).toBe("/cards/order");
-    expect(secondOpts.body).toEqual({ hash: "h_card" });
+    expect(secondOpts.body).toEqual({
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
+      hash: "h_card",
+      fees: { issuance: { amount: "5.00", currency: "EUR" } },
+      holderName: "Jane Doe",
+      cardName: "Team card",
+      spendingLimit: { name: "MONTHLY", limit: { amount: "2000.00", currency: "EUR" } },
+    });
     expect(secondOpts.idempotencyKey).toMatch(UUID_V4_RE);
 
     expect(result.intent).toEqual(intent);
-    expect(result.card).toEqual(card);
+    expect(result.card).toEqual(orderResponse.card);
     expect(result.idempotencyKey).toBe(secondOpts.idempotencyKey);
   });
 
-  it("omits optional fields from the intent body when not supplied", async () => {
+  it("omits optional fields from both bodies when not supplied", async () => {
     const { client, post } = makeClient();
-    post.mockResolvedValueOnce(fixtureIntent()).mockResolvedValueOnce(fixtureCard());
+    post.mockResolvedValueOnce(fixtureIntent()).mockResolvedValueOnce(fixtureOrderResponse());
 
     const args = orderCard.inputSchema.parse({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
     });
     await orderCard.execute(client, args);
 
     const [, firstOpts] = post.mock.calls[0]!;
     expect(firstOpts.body).toEqual({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
+      cardDesignId: "design_1",
+      customerId: "customer_1",
     });
-    expect("designId" in firstOpts.body).toBe(false);
-    expect("cardholderName" in firstOpts.body).toBe(false);
-    expect("limits" in firstOpts.body).toBe(false);
+    expect("holderName" in firstOpts.body).toBe(false);
+
+    const [, secondOpts] = post.mock.calls[1]!;
+    expect(secondOpts.body).toEqual({
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
+      hash: "h_card",
+      fees: { issuance: { amount: "5.00", currency: "EUR" } },
+    });
+    expect("holderName" in secondOpts.body).toBe(false);
+    expect("cardName" in secondOpts.body).toBe(false);
+    expect("spendingLimit" in secondOpts.body).toBe(false);
+  });
+
+  it("emits spendingLimit { name: 'UNLIMITED' } without `limit` when policy=UNLIMITED", async () => {
+    const { client, post } = makeClient();
+    post.mockResolvedValueOnce(fixtureIntent()).mockResolvedValueOnce(fixtureOrderResponse());
+
+    const args = orderCard.inputSchema.parse({
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
+      spendingLimit: { policy: "UNLIMITED" },
+    });
+    await orderCard.execute(client, args);
+
+    const [, secondOpts] = post.mock.calls[1]!;
+    expect(secondOpts.body.spendingLimit).toEqual({ name: "UNLIMITED" });
   });
 
   it("generates a fresh idempotency key per invocation", async () => {
     const { client, post } = makeClient();
     post
       .mockResolvedValueOnce(fixtureIntent("hA"))
-      .mockResolvedValueOnce(fixtureCard())
+      .mockResolvedValueOnce(fixtureOrderResponse())
       .mockResolvedValueOnce(fixtureIntent("hB"))
-      .mockResolvedValueOnce(fixtureCard());
+      .mockResolvedValueOnce(fixtureOrderResponse());
 
     const args = orderCard.inputSchema.parse({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
     });
 
     const r1 = await runOrderCard(client, args);
@@ -176,8 +209,9 @@ describe("brighty_order_card — two-step intent → order", () => {
     post.mockRejectedValueOnce(new Error("intent failed"));
 
     const args = orderCard.inputSchema.parse({
-      kind: "VIRTUAL",
-      accountId: "acc_eur",
+      cardDesignId: "design_1",
+      customerId: "customer_1",
+      sourceAccountId: "acc_eur",
     });
 
     await expect(runOrderCard(client, args)).rejects.toThrow("intent failed");
@@ -185,23 +219,21 @@ describe("brighty_order_card — two-step intent → order", () => {
     expect(post.mock.calls[0]![0]).toBe("/cards/order/intent");
   });
 
-  it("rejects an invalid kind at parse time", () => {
-    expect(() => orderCard.inputSchema.parse({ kind: "DEBIT", accountId: "acc_eur" })).toThrow();
+  it("rejects a missing cardDesignId at parse time", () => {
+    expect(() => orderCard.inputSchema.parse({ customerId: "c", sourceAccountId: "a" })).toThrow();
   });
 
-  it("rejects a missing accountId at parse time", () => {
-    expect(() => orderCard.inputSchema.parse({ kind: "VIRTUAL" })).toThrow();
+  it("rejects a missing sourceAccountId at parse time", () => {
+    expect(() => orderCard.inputSchema.parse({ cardDesignId: "d", customerId: "c" })).toThrow();
   });
 
   it("rejects a client-supplied idempotencyKey at parse time (intent re-fetch makes replay unsafe)", () => {
-    // Strict mode is what enforces this: a default-strip z.object would
-    // silently drop the unknown key, and the caller would think their retry
-    // was idempotent while the server quietly issued a new card on each call.
     expect(orderCard.inputSchema.shape).not.toHaveProperty("idempotencyKey");
     expect(() =>
       orderCard.inputSchema.parse({
-        kind: "VIRTUAL",
-        accountId: "acc_eur",
+        cardDesignId: "d",
+        customerId: "c",
+        sourceAccountId: "a",
         idempotencyKey: "client-supplied-uuid",
       }),
     ).toThrow();
@@ -209,87 +241,74 @@ describe("brighty_order_card — two-step intent → order", () => {
 });
 
 describe("brighty_set_card_limits", () => {
-  it("PUTs both daily and monthly Money objects to /cards/:id/limits", async () => {
-    const updated: Card = {
+  function fixtureCard(): Card {
+    return {
       id: "card_1",
-      kind: "VIRTUAL",
+      name: "Card",
+      type: "DEBIT",
+      network: "VISA",
+      formFactor: "VIRTUAL",
       status: "ACTIVE",
-      accountId: "acc_eur",
-      currency: "EUR",
-      limits: {
-        daily: { amount: "200.00", currency: "EUR" },
-        monthly: { amount: "5000.00", currency: "EUR" },
-      },
+      cardOwnerId: "owner_1",
+      cardHolderId: "holder_1",
+      cardHolderName: "Jane Doe",
+      cardDesign: { id: "design_1" },
       createdAt: "2026-04-27T10:00:00Z",
     };
-    const { client, put } = makeClient();
-    put.mockResolvedValueOnce(updated);
+  }
 
-    const result = await setCardLimits.execute(client, {
+  it("PUTs { name: 'MONTHLY', limit } to /cards/:id/limits", async () => {
+    const { client, put } = makeClient();
+    put.mockResolvedValueOnce(fixtureCard());
+
+    await setCardLimits.execute(client, {
       cardId: "card_1",
-      daily: { amount: "200.00", currency: "EUR" },
-      monthly: { amount: "5000.00", currency: "EUR" },
+      policy: "MONTHLY",
+      limit: { amount: "5000.00", currency: "EUR" },
     });
 
-    expect(result).toEqual(updated);
     expect(put).toHaveBeenCalledTimes(1);
     const [path, opts] = put.mock.calls[0]!;
     expect(path).toBe("/cards/card_1/limits");
     expect(opts.body).toEqual({
-      daily: { amount: "200.00", currency: "EUR" },
-      monthly: { amount: "5000.00", currency: "EUR" },
+      name: "MONTHLY",
+      limit: { amount: "5000.00", currency: "EUR" },
     });
   });
 
-  it("PUTs only the supplied bucket when one of daily/monthly is omitted", async () => {
+  it("PUTs { name: 'UNLIMITED' } without limit when policy=UNLIMITED", async () => {
     const { client, put } = makeClient();
-    put.mockResolvedValueOnce({
-      id: "card_1",
-      kind: "VIRTUAL",
-      status: "ACTIVE",
-      accountId: "acc_eur",
-      currency: "EUR",
-      createdAt: "2026-04-27T10:00:00Z",
-    } satisfies Card);
+    put.mockResolvedValueOnce(fixtureCard());
 
     await setCardLimits.execute(client, {
       cardId: "card_1",
-      monthly: { amount: "1000.00", currency: "EUR" },
+      policy: "UNLIMITED",
     });
 
     const [, opts] = put.mock.calls[0]!;
-    expect(opts.body).toEqual({
-      monthly: { amount: "1000.00", currency: "EUR" },
-    });
-    expect("daily" in opts.body).toBe(false);
+    expect(opts.body).toEqual({ name: "UNLIMITED" });
+    expect("limit" in opts.body).toBe(false);
   });
 
   it("encodes the cardId in the URL", async () => {
     const { client, put } = makeClient();
-    put.mockResolvedValueOnce({
-      id: "card/with space",
-      kind: "VIRTUAL",
-      status: "ACTIVE",
-      accountId: "acc_eur",
-      currency: "EUR",
-      createdAt: "2026-04-27T10:00:00Z",
-    } satisfies Card);
+    put.mockResolvedValueOnce(fixtureCard());
 
     await setCardLimits.execute(client, {
       cardId: "card/with space",
-      daily: { amount: "10.00", currency: "EUR" },
+      policy: "UNLIMITED",
     });
 
     const [path] = put.mock.calls[0]!;
     expect(path).toBe(`/cards/${encodeURIComponent("card/with space")}/limits`);
   });
 
-  it("throws when neither daily nor monthly is supplied", async () => {
+  it("throws when policy=MONTHLY but limit is missing", async () => {
     const { client, put } = makeClient();
 
-    await expect(setCardLimits.execute(client, { cardId: "card_1" })).rejects.toThrow(
-      /at least one of daily or monthly/,
-    );
+    await expect(
+      setCardLimits.execute(client, { cardId: "card_1", policy: "MONTHLY" }),
+    ).rejects.toThrow(/limit.*MONTHLY/);
 
     expect(put).not.toHaveBeenCalled();
   });
@@ -298,7 +317,8 @@ describe("brighty_set_card_limits", () => {
     expect(() =>
       setCardLimits.inputSchema.parse({
         cardId: "card_1",
-        daily: { amount: "abc", currency: "EUR" },
+        policy: "MONTHLY",
+        limit: { amount: "abc", currency: "EUR" },
       }),
     ).toThrow();
   });
