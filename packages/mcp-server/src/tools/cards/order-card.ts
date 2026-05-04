@@ -2,20 +2,32 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { BrightyClient } from "../../api/client.js";
-import type { Card, CardOrderIntent } from "../../types/brighty.js";
+import type {
+  Card,
+  CardLimitsName,
+  CardOrderIntent,
+  CardOrderResponse,
+  Money,
+} from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 
 const moneySchema = z.object({
   amount: z
     .string()
-    .regex(/^-?\d+(\.\d+)?$/, "amount must be a decimal string like '100.00'")
+    .regex(/^-?\d+(\.\d+)?$/, "amount must be a decimal string like '500.00'")
     .describe("Decimal amount as a string, e.g. '500.00'."),
   currency: z.string().min(3).max(8).describe("ISO-4217 currency, must match the card's currency."),
 });
 
-const limitsSchema = z.object({
-  daily: moneySchema.optional().describe("Daily spend limit."),
-  monthly: moneySchema.optional().describe("Monthly spend limit."),
+const spendingLimitSchema = z.object({
+  policy: z
+    .enum(["UNLIMITED", "MONTHLY"])
+    .describe(
+      "Spending policy. UNLIMITED = no cap; MONTHLY = `limit` enforced per calendar month.",
+    ),
+  limit: moneySchema
+    .optional()
+    .describe("Required when policy=MONTHLY; ignored when policy=UNLIMITED."),
 });
 
 // .strict() rejects unknown keys at parse time. Without it, a caller could
@@ -24,35 +36,39 @@ const limitsSchema = z.object({
 // every "retry". Strict mode makes the no-caller-key contract enforceable.
 export const orderCardInputSchema = z
   .object({
-    kind: z
-      .enum(["VIRTUAL", "PHYSICAL"])
-      .describe(
-        "Card kind. VIRTUAL is issued instantly; PHYSICAL is shipped and may have additional product checks.",
-      ),
-    accountId: z
+    cardDesignId: z
       .string()
       .min(1)
       .describe(
-        "Brighty account id the new card will be attached to. Determines the card's currency.",
+        "Card design id from brighty_list_card_designs. The design pins the card formFactor (VIRTUAL / PLASTIC / METAL).",
       ),
-    designId: z
+    customerId: z
       .string()
       .min(1)
-      .optional()
       .describe(
-        "Card design id from brighty_list_card_designs. The default design is used if omitted.",
+        "Customer id (UUID) the card will be issued to. Get from brighty_list_members for team cards or use the business owner's id for own card.",
       ),
-    cardholderName: z
+    sourceAccountId: z
+      .string()
+      .min(1)
+      .describe("Brighty account id the new card will spend from. Determines the card's currency."),
+    holderName: z
       .string()
       .min(1)
       .max(60)
       .optional()
       .describe(
-        "Name as it should appear on the card. Defaults to the cardholder's profile name when omitted.",
+        "Name as it should appear on the card. Defaults to the customer's profile name when omitted.",
       ),
-    limits: limitsSchema
+    cardName: z
+      .string()
+      .min(1)
+      .max(60)
       .optional()
-      .describe("Optional initial spend limits. Use brighty_set_card_limits to change later."),
+      .describe("Internal label for the card; not embossed."),
+    spendingLimit: spendingLimitSchema
+      .optional()
+      .describe("Optional initial spending policy. Use brighty_set_card_limits to change later."),
   })
   .strict();
 
@@ -69,13 +85,24 @@ export async function runOrderCardIntent(
   args: OrderCardArgs,
 ): Promise<CardOrderIntent> {
   const body: Record<string, unknown> = {
-    kind: args.kind,
-    accountId: args.accountId,
+    cardDesignId: args.cardDesignId,
+    customerId: args.customerId,
   };
-  if (args.designId !== undefined) body.designId = args.designId;
-  if (args.cardholderName !== undefined) body.cardholderName = args.cardholderName;
-  if (args.limits !== undefined) body.limits = args.limits;
+  if (args.holderName !== undefined) body.holderName = args.holderName;
   return client.post<CardOrderIntent>("/cards/order/intent", { body });
+}
+
+function spendingLimitBody(
+  spendingLimit: OrderCardArgs["spendingLimit"],
+): { name: CardLimitsName; limit?: Money } | undefined {
+  if (!spendingLimit) return undefined;
+  if (spendingLimit.policy === "MONTHLY") {
+    if (spendingLimit.limit === undefined) {
+      throw new Error("spendingLimit.limit is required when spendingLimit.policy=MONTHLY.");
+    }
+    return { name: "MONTHLY", limit: spendingLimit.limit };
+  }
+  return { name: "UNLIMITED" };
 }
 
 export async function runOrderCard(
@@ -89,17 +116,28 @@ export async function runOrderCard(
   // issue a card at fees the user never approved.
   const intent = await runOrderCardIntent(client, args);
   const idempotencyKey = randomUUID();
-  const card = await client.post<Card>("/cards/order", {
-    body: { hash: intent.hash },
+  const body: Record<string, unknown> = {
+    cardDesignId: args.cardDesignId,
+    customerId: args.customerId,
+    sourceAccountId: args.sourceAccountId,
+    fees: intent.fees,
+    hash: intent.hash,
+  };
+  if (args.holderName !== undefined) body.holderName = args.holderName;
+  if (args.cardName !== undefined) body.cardName = args.cardName;
+  const limitBody = spendingLimitBody(args.spendingLimit);
+  if (limitBody !== undefined) body.spendingLimit = limitBody;
+  const response = await client.post<CardOrderResponse>("/cards/order", {
+    body,
     idempotencyKey,
   });
-  return { intent, card, idempotencyKey };
+  return { intent, card: response.card, idempotencyKey };
 }
 
 export const orderCard = defineBrightyTool({
   name: "brighty_order_card",
   description:
-    "Order a new Brighty card. Two-step: first POST /cards/order/intent to get fees and a short-lived hash, then POST /cards/order with that hash and a fresh UUIDv4 idempotency key. Always show the user the fees from the intent before executing the order. Returns { intent, card, idempotencyKey }.",
+    "Order a new Brighty card. Two-step: first POST /cards/order/intent (returns fees, amount, and a short-lived hash), then POST /cards/order with hash + fees + sourceAccountId and a fresh UUIDv4 Idempotency-Key. Always show the user intent.fees + intent.amount before executing the order. Returns { intent, card, idempotencyKey }.",
   inputSchema: orderCardInputSchema,
   execute: runOrderCard,
 });

@@ -18,43 +18,44 @@ concurrency:
 
 permissions:
   contents: read
+  packages: read
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, Linux, X64, large]
+    env:
+      NPM_GITHUB_TOKEN: you-dont-need-this
+      CI: true
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - name: checkout
+        uses: actions/checkout@v6
 
-      - name: Enable Corepack
-        run: corepack enable
+      - name: update .yarnrc.yml for GitHub Packages auth
+        run: |
+          yarn config set 'npmRegistries["//npm.pkg.github.com"].npmAuthToken' '${NPM_GITHUB_TOKEN}'
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-          cache: "yarn"
-
-      - name: Install
+      - name: install
         run: yarn install --immutable
+        env:
+          NPM_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Validate plugin manifest
+      - name: validate plugin manifest
         run: yarn validate-plugin
 
-      - name: Validate AgentSkills
+      - name: validate AgentSkills
         run: yarn validate
 
-      - name: Cross-reference skills <-> MCP tools
+      - name: cross-reference skills <-> MCP tools
         run: yarn check-tools
 
-      - name: Lint
+      - name: lint
         run: yarn lint
 
-      - name: Format check
+      - name: format check
         run: yarn format:check
 
-      - name: Build
+      - name: build
         run: yarn build
 
-      - name: Test
+      - name: test
         run: yarn test

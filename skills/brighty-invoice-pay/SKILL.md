@@ -34,30 +34,38 @@ is built around batches.
 
 This skill calls only existing tools; it does not register new ones.
 
-- `brighty_list_accounts` (banking) — pick the source account when the user
-  did not name one. Filter by `currency` to match the invoice.
-- `brighty_create_payout` (payouts) — open a DRAFT container with a
-  descriptive `name`, e.g. "Pay AWS invoice 4321".
-- `brighty_create_external_transfer` (payouts) — add the single transfer.
-  `beneficiary.kind: "FIAT"` for IBAN/BIC/account-number rails;
-  `beneficiary.kind: "CRYPTO"` for on-chain addresses.
-- `brighty_get_payout` (payouts) — re-fetch the payout immediately before
-  the confirmation step so the user sees what Brighty stored.
-- `brighty_start_payout` (payouts) — final commit. Runs the local preflight
-  balance check; surface its `shortfalls` verbatim if it fails.
+- `brighty_list_accounts` (banking) — pick the source account when the
+  user did not name one. Filter the returned array client-side by
+  `balance.currency` to match the invoice (the API has no currency
+  query param).
+- `brighty_create_payout` (payouts) — open a `CREATED` container with a
+  descriptive `name`, e.g. "Pay AWS invoice 4321". **Capture the
+  returned `id` AND `createdAt` — both are required by every follow-up
+  call.**
+- `brighty_create_external_transfer` (payouts) — add the single
+  transfer. `beneficiary.kind: "FIAT"` for IBAN/BIC/account-number
+  rails; `beneficiary.kind: "CRYPTO"` for on-chain addresses. Pass
+  `payoutCreatedAt` (the value captured above) — the Brighty API
+  rejects without it.
+- `brighty_get_payout` (payouts) — re-fetch the payout immediately
+  before the confirmation step so the user sees what Brighty stored.
+  Pass `payoutId` + `createdAt`.
+- `brighty_start_payout` (payouts) — final commit. Pass `payoutId` +
+  `createdAt`. Runs the local preflight balance check; surface its
+  `shortfalls` verbatim if it fails. Returns `{ ok: true }` on success.
 
 ## Reference material
 
-- `references/INVOICE_FIELDS.md` — exact list of fields to extract from the
-  invoice and how each maps onto `brighty_create_external_transfer`
-  arguments. Read this before extracting from an unfamiliar invoice layout.
-- `references/CONFIRMATION_TEMPLATE.md` — the shape of the message to show
-  the user before calling `brighty_start_payout`. Do not skip it.
+- `references/INVOICE_FIELDS.md` — exact list of fields to extract from
+  the invoice and how each maps onto `brighty_create_external_transfer`
+  arguments.
+- `references/CONFIRMATION_TEMPLATE.md` — the shape of the message to
+  show the user before calling `brighty_start_payout`. Do not skip it.
 
 ## The pipeline
 
-Five steps, in order. Do not re-order or skip steps 3 and 4 — they are how
-the user catches OCR mistakes before money moves.
+Five steps, in order. Do not re-order or skip steps 3 and 4 — they are
+how the user catches OCR mistakes before money moves.
 
 ### 1. Extract fields from the invoice
 
@@ -89,13 +97,15 @@ tool arguments, and what to do when something is missing or ambiguous.
 
 If the user named an account, use it. Otherwise:
 
-1. Call `brighty_list_accounts` with `currency` matching the invoice.
+1. Call `brighty_list_accounts` (no currency filter exists; you'll get
+   them all). Filter the result client-side by `balance.currency ===`
+   invoice currency.
 2. If exactly one matching `CURRENT` account is returned, propose it.
 3. If multiple match, ask the user. Never pick silently when ambiguous.
 4. If none match (no account in the invoice currency), stop and tell the
    user. Do not auto-FX — that requires the `brighty-payouts` skill's
-   `brighty_transfer_intent` + `brighty_transfer_own` flow first, and the
-   user must consent to the rate.
+   `brighty_transfer_intent` + `brighty_transfer_own` flow first, and
+   the user must consent to the rate.
 
 ### 3. Show the user the proposed transfer (pre-payout confirmation)
 
@@ -115,40 +125,43 @@ not proceed on a partial diff.
 Only after step 3:
 
 1. `brighty_create_payout` with a descriptive `name`, e.g.
-   `"Pay <supplier> invoice <reference>"`. Capture the returned `id` as
-   `payoutId`.
+   `"Pay <supplier> invoice <reference>"`. **Capture both `id` (as
+   `payoutId`) and `createdAt` (as `payoutCreatedAt`).**
 2. `brighty_create_external_transfer` with the extracted fields:
    - `payoutId` from step 1
+   - `payoutCreatedAt` from step 1 (the API rejects without this)
    - `sourceAccountId` from step 2
    - `amount: { amount: "<decimal-string>", currency: "<ISO>" }`
    - `beneficiary` per `kind`
    - `reference` (the invoice number)
      Capture the returned `idempotencyKey` — keep it for any retry.
-3. `brighty_get_payout` with `payoutId`. Show the user the stored
-   `transfersCount` (must be 1), `totalsByCurrency`, and the recipient
-   line as Brighty echoed it back. This catches the "I sent the wrong
-   IBAN" class of mistake before commit.
+3. `brighty_get_payout` with `payoutId` + `createdAt`. Show the user the
+   stored `payout.totalTransfers` (must be 1), `payout.totalAmount`,
+   and the recipient line as Brighty echoed it back. This catches the
+   "I sent the wrong IBAN" class of mistake before commit.
 
 ### 5. Commit
 
 After the user re-confirms on the post-create view from step 4.3, call
-`brighty_start_payout` with `payoutId`.
+`brighty_start_payout` with `payoutId` + `createdAt`.
 
-- On success, report the returned payout `status` and `id`.
+- On success, the tool returns `{ ok: true }` (the API itself returns
+  204). Report success to the user with the payout id.
 - On a blocked preflight (MCP error result with body
   `{ ok: false, error: "PreflightFailed", message, shortfalls: [...] }`),
   surface the per-account `shortfalls` list verbatim and stop. Do not
   retry with `skipPreflight: true` unless the user explicitly says so in
   writing — losing the per-account shortfall report on a single-transfer
   invoice is rarely worth the risk.
-- On a Brighty API error, surface `description` (or `message`) verbatim.
+- On a Brighty API error, surface `description` (the human text)
+  verbatim.
 
 ## Critical patterns
 
-**Always extract, then confirm, then create.** The biggest failure mode is
-an OCR mistake on an IBAN or amount that the user only sees after Brighty
-has already initiated the transfer. The two confirmation steps (pre-create
-and post-create) are the controls — do not collapse them.
+**Always extract, then confirm, then create.** The biggest failure mode
+is an OCR mistake on an IBAN or amount that the user only sees after
+Brighty has already initiated the transfer. The two confirmation steps
+(pre-create and post-create) are the controls — do not collapse them.
 
 **Never paraphrase amounts or IBANs in the confirmation.** Show them
 character-for-character as extracted. Group IBAN digits in fours for
@@ -167,41 +180,48 @@ text.
 ## Important behaviours
 
 - Money is `{ amount: string, currency: string }`. Treat `amount` as a
-  decimal string. Strip thousands separators (`"1,234.56"` → `"1234.56"`)
-  before sending; never cast to a number.
+  decimal string. Strip thousands separators (`"1,234.56"` →
+  `"1234.56"`) before sending; never cast to a number.
 - Trim whitespace from IBANs (`"DE89 3704 0044 …"` → `"DE89370400…"`)
   before sending; the schema does not auto-strip.
 - `brighty_create_external_transfer` discriminates on `beneficiary.kind`.
   `FIAT` requires `beneficiaryName` plus at least `iban` or
   `accountNumber`. `CRYPTO` requires `accountNumber` (the on-chain
   address) and `transferNetworkId`. `memo` is required on chains that
-  route by memo.
+  route by memo. Alternatively, pass a saved `beneficiaryId` instead of
+  an inline beneficiary.
 - Set `beneficiary.isBusinessRecipient: true` for supplier invoices —
   they are by definition B2B. This helps the AML routing pick the right
   category.
-- Idempotency keys are auto-generated (UUIDv4) when not supplied. Keep
-  the returned key on retries; reusing it makes the API safe to call
-  again with the same body.
-- Currency on the invoice must match the source account's currency. If
-  they differ, stop and ask the user — do not auto-FX from this skill.
+- The Brighty API requires `Idempotency-Key` on
+  `POST /payouts/{id}/transfers/external` — the tool generates a
+  UUIDv4 per call when not supplied. Keep the returned key on retries.
+- The Brighty API also requires `createdAt` (the payout's timestamp) as
+  a query param on `POST /payouts/{id}/transfers/external`,
+  `GET /payouts/{id}`, and `POST /payouts/{id}/start`. Always capture
+  `createdAt` from `brighty_create_payout` and pass it through.
+- Currency on the invoice must match the source account's
+  `balance.currency`. If they differ, stop and ask the user — do not
+  auto-FX from this skill.
 
 ## When NOT to use this skill
 
 - Multi-recipient batch (CSV/Excel/payroll) → `brighty-payouts`.
 - "Convert EUR to USD on my savings account" → `brighty-payouts`'s
   `brighty_transfer_intent` + `brighty_transfer_own` flow.
-- Internal Brighty-to-Brighty transfer with no external rail →
-  `brighty-payouts`'s `brighty_create_internal_transfer` inside a payout.
+- Internal Brighty-to-Brighty transfer to a Brighty username →
+  `brighty-payouts`'s `brighty_create_internal_transfer` inside a
+  payout.
 - Reading balances, opening accounts, inviting members →
   `brighty-banking`.
 - Issuing or freezing cards → `brighty-cards`.
 
 ## Error handling
 
-Brighty errors arrive as `{ name, message, description, status, code }`.
-Surface `description` (or `message` if absent) verbatim — do not rephrase.
-On 401, instruct the user to set `BRIGHTY_API_KEY` or run
-`brighty-mcp login`.
+Brighty returns errors as `{ errorCode, name, description, params? }`.
+Surface `description` (the human text) verbatim — do not rephrase. On
+401, instruct the user to set `BRIGHTY_API_KEY` or run `brighty-mcp
+login`.
 
 A blocked preflight from `brighty_start_payout` arrives as an MCP error
 result whose body is

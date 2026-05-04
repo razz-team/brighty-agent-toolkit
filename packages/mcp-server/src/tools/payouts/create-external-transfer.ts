@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { BrightyClient } from "../../api/client.js";
-import type { PayoutTransfer } from "../../types/brighty.js";
+import type { TransferPostponedResponse } from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 
 const moneySchema = z.object({
@@ -96,23 +96,42 @@ export const createExternalTransferInputSchema = z.object({
   payoutId: z
     .string()
     .min(1)
-    .describe("Brighty payout id (in DRAFT) the transfer will be added to."),
+    .describe("Brighty payout id (in CREATED state) the transfer will be added to."),
+  payoutCreatedAt: z
+    .string()
+    .min(1)
+    .describe(
+      "The payout's createdAt timestamp (ISO Instant). Required by the Brighty API as a query param alongside the path id; pass the value returned from brighty_create_payout.",
+    ),
   sourceAccountId: z.string().min(1).describe("Brighty account id the funds come from."),
   amount: moneySchema.describe("Amount and currency to send."),
-  beneficiary: beneficiarySchema.describe(
-    "Recipient details. Use kind='FIAT' for IBAN/BIC/account-number bank transfers; kind='CRYPTO' for on-chain transfers with accountNumber + transferNetworkId.",
-  ),
+  beneficiary: beneficiarySchema
+    .optional()
+    .describe(
+      "Inline recipient details. Use kind='FIAT' for IBAN/BIC/account-number bank transfers; kind='CRYPTO' for on-chain transfers with accountNumber + transferNetworkId. Provide either `beneficiary` (inline) or `beneficiaryId` (saved beneficiary).",
+    ),
+  beneficiaryId: z
+    .string()
+    .min(1)
+    .optional()
+    .describe("Saved beneficiary id (UUID). Provide either `beneficiary` (inline) or this."),
   reference: z
     .string()
     .min(1)
     .max(140)
     .optional()
     .describe("Payment reference / memo line shown on the recipient's statement."),
+  evidence: z
+    .array(z.string().min(1))
+    .optional()
+    .describe("Optional supporting document URIs (e.g. invoice attachments)."),
   idempotencyKey: z
     .string()
     .min(1)
     .optional()
-    .describe("Optional client-supplied idempotency key. A UUIDv4 is generated when omitted."),
+    .describe(
+      "Client-supplied idempotency key. The Brighty API requires one — a UUIDv4 is generated when omitted. Reuse the same key on retries to avoid duplicate transfers.",
+    ),
 });
 
 export type CreateExternalTransferArgs = z.infer<typeof createExternalTransferInputSchema>;
@@ -120,9 +139,14 @@ export type CreateExternalTransferArgs = z.infer<typeof createExternalTransferIn
 export async function runCreateExternalTransfer(
   client: BrightyClient,
   args: CreateExternalTransferArgs,
-): Promise<{ transfer: PayoutTransfer; idempotencyKey: string }> {
+): Promise<{ transfer: TransferPostponedResponse; idempotencyKey: string }> {
+  if (args.beneficiary === undefined && args.beneficiaryId === undefined) {
+    throw new Error(
+      "brighty_create_external_transfer requires either an inline `beneficiary` or a `beneficiaryId`. Provide one of them.",
+    );
+  }
   if (
-    args.beneficiary.kind === "FIAT" &&
+    args.beneficiary?.kind === "FIAT" &&
     !args.beneficiary.iban &&
     !args.beneficiary.accountNumber
   ) {
@@ -135,14 +159,22 @@ export async function runCreateExternalTransfer(
   const body: Record<string, unknown> = {
     sourceAccountId: args.sourceAccountId,
     amount: args.amount,
-    beneficiary: args.beneficiary,
   };
+  if (args.beneficiary !== undefined) {
+    body.beneficiary = args.beneficiary;
+  }
+  if (args.beneficiaryId !== undefined) {
+    body.beneficiaryId = args.beneficiaryId;
+  }
   if (args.reference !== undefined) {
     body.reference = args.reference;
   }
-  const transfer = await client.post<PayoutTransfer>(
+  if (args.evidence !== undefined) {
+    body.evidence = args.evidence;
+  }
+  const transfer = await client.post<TransferPostponedResponse>(
     `/payouts/${encodeURIComponent(args.payoutId)}/transfers/external`,
-    { body, idempotencyKey },
+    { body, idempotencyKey, query: { createdAt: args.payoutCreatedAt } },
   );
   return { transfer, idempotencyKey };
 }
@@ -150,7 +182,7 @@ export async function runCreateExternalTransfer(
 export const createExternalTransfer = defineBrightyTool({
   name: "brighty_create_external_transfer",
   description:
-    "Add an external transfer (off-Brighty) to a DRAFT payout. Discriminates between fiat (IBAN/BIC/account-number) and crypto (on-chain address + network id) recipients via the beneficiary.kind field. Generates a UUIDv4 idempotency key when one is not supplied. Set beneficiary.isBusinessRecipient when known so the bank rail picks the correct AML category.",
+    "Add an external transfer (off-Brighty) to a payout. Discriminates between fiat (IBAN/BIC/account-number) and crypto (on-chain address + network id) recipients via the beneficiary.kind field, or pass a saved `beneficiaryId` instead of an inline beneficiary. The Brighty API requires `createdAt` (the payout's timestamp) as a query param and `Idempotency-Key` as a header — both are wired through. Returns { transfer: { id, createdAt }, idempotencyKey }.",
   inputSchema: createExternalTransferInputSchema,
   execute: runCreateExternalTransfer,
 });

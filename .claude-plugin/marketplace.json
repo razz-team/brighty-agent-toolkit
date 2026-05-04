@@ -1,6 +1,9 @@
 {
   "name": "brighty-agent-toolkit",
-  "owner": "razz-team",
+  "owner": {
+    "name": "razz-team",
+    "url": "https://github.com/razz-team"
+  },
   "plugins": [
     {
       "name": "brighty",

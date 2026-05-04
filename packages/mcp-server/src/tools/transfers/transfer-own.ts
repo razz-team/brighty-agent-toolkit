@@ -1,18 +1,27 @@
 import { randomUUID } from "node:crypto";
-import type { z } from "zod";
+import { z } from "zod";
 
 import type { BrightyClient } from "../../api/client.js";
-import type { OwnTransfer, TransferIntent } from "../../types/brighty.js";
+import type { OwnTransferCreated, OwnTransferIntent } from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 import { runTransferIntent, transferIntentInputSchema } from "./transfer-intent.js";
 
-export const transferOwnInputSchema = transferIntentInputSchema;
+// transferOwnInputSchema extends transferIntentInputSchema with the destination
+// account so the executor can both refresh the intent and target the right
+// account. The intent itself does not take a target account — it is a pure
+// rate quote.
+export const transferOwnInputSchema = transferIntentInputSchema.extend({
+  targetAccountId: z
+    .string()
+    .min(1)
+    .describe("Brighty account id the funds will land in. Must belong to the same business."),
+});
 
 export type TransferOwnArgs = z.infer<typeof transferOwnInputSchema>;
 
 export interface OwnTransferResult {
-  intent: TransferIntent;
-  transfer: OwnTransfer;
+  intent: OwnTransferIntent;
+  transfer: OwnTransferCreated;
   idempotencyKey: string;
 }
 
@@ -27,8 +36,14 @@ export async function runTransferOwn(
   // commit a transfer at a rate the user never approved.
   const intent = await runTransferIntent(client, args);
   const idempotencyKey = randomUUID();
-  const transfer = await client.post<OwnTransfer>("/transfers/own", {
-    body: { hash: intent.hash },
+  const transfer = await client.post<OwnTransferCreated>("/transfers/own", {
+    body: {
+      sourceAccountId: args.sourceAccountId,
+      targetAccountId: args.targetAccountId,
+      quote: intent.quote,
+      hash: intent.hash,
+      fees: intent.fees,
+    },
     idempotencyKey,
   });
   return { intent, transfer, idempotencyKey };
@@ -37,7 +52,7 @@ export async function runTransferOwn(
 export const transferOwn = defineBrightyTool({
   name: "brighty_transfer_own",
   description:
-    "Execute a transfer between two of the business's own Brighty accounts. Always fetches a fresh transfer intent first to keep the rate current, then forwards the intent hash to /transfers/own with a unique idempotency key. Returns the intent (rate/fees) alongside the resulting transfer.",
+    "Execute an FX transfer between two of the business's own Brighty accounts. Internally re-fetches the intent (so the rate is current) then POSTs /transfers/own with { sourceAccountId, targetAccountId, quote, hash, fees } and a generated UUIDv4 Idempotency-Key. Returns the intent (rate/fees/delivery) alongside the resulting transaction { transactionId, transactionState, createdAt }.",
   inputSchema: transferOwnInputSchema,
   execute: runTransferOwn,
 });

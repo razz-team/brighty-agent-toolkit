@@ -15,7 +15,7 @@ export const terminateAccount = defineBrightyTool({
     "Close a Brighty account. The account must be empty (zero balance) and not the primary account. This is irreversible.",
   inputSchema,
   execute: async (client, args) => {
-    await client.delete<void>(`/accounts/${encodeURIComponent(args.accountId)}`);
+    await client.post<void>(`/accounts/${encodeURIComponent(args.accountId)}/terminate`);
     return { accountId: args.accountId, status: "TERMINATED" as const };
   },
 });

@@ -2,11 +2,6 @@
   "name": "brighty",
   "version": "0.0.1",
   "description": "Brighty banking and payments for AI agents — open accounts, run mass payouts, issue cards, and pay invoices through natural language.",
-  "skills": [
-    "skills/brighty-banking",
-    "skills/brighty-payouts",
-    "skills/brighty-invoice-pay",
-    "skills/brighty-cards"
-  ],
-  "mcpServers": "${CLAUDE_PLUGIN_ROOT}/.mcp.json"
+  "skills": "./skills/",
+  "mcpServers": "./.mcp.json"
 }

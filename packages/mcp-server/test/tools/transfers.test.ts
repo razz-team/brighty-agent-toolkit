@@ -8,7 +8,7 @@ import {
   type OwnTransferResult,
 } from "../../src/tools/transfers/transfer-own.js";
 import { transfersTools } from "../../src/tools/transfers/index.js";
-import type { OwnTransfer, TransferIntent } from "../../src/types/brighty.js";
+import type { OwnTransferCreated, OwnTransferIntent } from "../../src/types/brighty.js";
 
 type ClientMethods = "get" | "post" | "put" | "patch" | "delete" | "request";
 
@@ -26,7 +26,7 @@ function makeClient(overrides: Partial<Record<ClientMethods, unknown>> = {}): {
     patch: overrides.patch ?? vi.fn(),
     delete: overrides.delete ?? vi.fn(),
     request: overrides.request ?? vi.fn(),
-    getBaseUrl: () => "https://api.brighty.app",
+    getBaseUrl: () => "https://api.brighty.app/business/v1",
   };
   return {
     client: stub as unknown as BrightyClient,
@@ -36,6 +36,28 @@ function makeClient(overrides: Partial<Record<ClientMethods, unknown>> = {}): {
 }
 
 const UUID_V4_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function fixtureIntent(hash = "h_42"): OwnTransferIntent {
+  return {
+    hash,
+    amount: { amount: "100.00", currency: "EUR" },
+    quote: {
+      sourceAmount: { amount: "100.00", currency: "EUR" },
+      targetAmount: { amount: "108.50", currency: "USD" },
+      fx: { rate: "1.085" },
+    },
+    fees: [{ description: "FX fee", amount: { amount: "0.50", currency: "EUR" } }],
+    deliveryInfo: { estimatedDeliveryDate: "2026-04-27T11:00:00Z" },
+  };
+}
+
+function fixtureCreated(): OwnTransferCreated {
+  return {
+    transactionId: "txn_1",
+    transactionState: "PENDING",
+    createdAt: "2026-04-27T10:00:00Z",
+  };
+}
 
 describe("transfers/index barrel", () => {
   it("exports two transfer tools with brighty_-prefixed snake_case names", () => {
@@ -50,114 +72,87 @@ describe("transfers/index barrel", () => {
 });
 
 describe("brighty_transfer_intent", () => {
-  it("POSTs to /transfers/intent with the resolved body and default amountSide=SOURCE", async () => {
-    const intent: TransferIntent = {
-      hash: "h_abc",
-      sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
-      fromAmount: { amount: "100.00", currency: "EUR" },
-      toAmount: { amount: "108.50", currency: "USD" },
-      rate: "1.085",
-    };
+  it("POSTs to /transfers/own/intent with the resolved body", async () => {
+    const intent = fixtureIntent();
     const { client, post } = makeClient();
     post.mockResolvedValueOnce(intent);
 
     const args = transferIntent.inputSchema.parse({
       sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
       amount: { amount: "100.00", currency: "EUR" },
+      side: "SELL",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
 
     const result = await transferIntent.execute(client, args);
 
     expect(result).toEqual(intent);
-    expect(post).toHaveBeenCalledWith("/transfers/intent", {
+    expect(post).toHaveBeenCalledWith("/transfers/own/intent", {
       body: {
-        sourceAccountId: "acc1",
-        destinationAccountId: "acc2",
         amount: { amount: "100.00", currency: "EUR" },
-        amountSide: "SOURCE",
+        side: "SELL",
+        sourceCurrency: "EUR",
+        targetCurrency: "USD",
       },
     });
   });
 
-  it("forwards an explicit amountSide=DESTINATION", async () => {
+  it("forwards an explicit side=BUY", async () => {
     const { client, post } = makeClient();
-    post.mockResolvedValueOnce({
-      hash: "h",
-      sourceAccountId: "a",
-      destinationAccountId: "b",
-      fromAmount: { amount: "92.00", currency: "EUR" },
-      toAmount: { amount: "100.00", currency: "USD" },
-    });
+    post.mockResolvedValueOnce(fixtureIntent());
 
     const args = transferIntent.inputSchema.parse({
       sourceAccountId: "a",
-      destinationAccountId: "b",
       amount: { amount: "100.00", currency: "USD" },
-      amountSide: "DESTINATION",
+      side: "BUY",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
     await transferIntent.execute(client, args);
 
     const [, opts] = post.mock.calls[0]!;
-    expect(opts.body.amountSide).toBe("DESTINATION");
+    expect(opts.body.side).toBe("BUY");
   });
 
   it("rejects a non-decimal amount string at parse time", () => {
     expect(() =>
       transferIntent.inputSchema.parse({
         sourceAccountId: "a",
-        destinationAccountId: "b",
         amount: { amount: "abc", currency: "EUR" },
+        side: "SELL",
+        sourceCurrency: "EUR",
+        targetCurrency: "USD",
       }),
     ).toThrow();
   });
 
-  it("rejects a missing destinationAccountId at parse time", () => {
+  it("rejects a missing side at parse time", () => {
     expect(() =>
       transferIntent.inputSchema.parse({
         sourceAccountId: "a",
         amount: { amount: "1.00", currency: "EUR" },
+        sourceCurrency: "EUR",
+        targetCurrency: "USD",
       }),
     ).toThrow();
   });
 });
 
 describe("brighty_transfer_own", () => {
-  function fixtureIntent(hash = "h_42"): TransferIntent {
-    return {
-      hash,
-      sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
-      fromAmount: { amount: "100.00", currency: "EUR" },
-      toAmount: { amount: "108.50", currency: "USD" },
-      rate: "1.085",
-    };
-  }
-
-  function fixtureTransfer(hash = "h_42"): OwnTransfer {
-    return {
-      id: "tr1",
-      hash,
-      sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
-      fromAmount: { amount: "100.00", currency: "EUR" },
-      toAmount: { amount: "108.50", currency: "USD" },
-      status: "PENDING",
-      createdAt: "2026-04-27T10:00:00Z",
-    };
-  }
-
-  it("calls intent first, then /transfers/own forwarding the hash with a UUID idempotency key", async () => {
+  it("calls intent first, then /transfers/own forwarding hash + quote + fees + accounts with a UUID idempotency key", async () => {
     const intent = fixtureIntent();
-    const transfer = fixtureTransfer();
+    const created = fixtureCreated();
     const { client, post } = makeClient();
-    post.mockResolvedValueOnce(intent).mockResolvedValueOnce(transfer);
+    post.mockResolvedValueOnce(intent).mockResolvedValueOnce(created);
 
     const args = transferOwn.inputSchema.parse({
       sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
+      targetAccountId: "acc2",
       amount: { amount: "100.00", currency: "EUR" },
+      side: "SELL",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
 
     const result = (await transferOwn.execute(client, args)) as OwnTransferResult;
@@ -165,22 +160,28 @@ describe("brighty_transfer_own", () => {
     expect(post).toHaveBeenCalledTimes(2);
 
     const [firstPath, firstOpts] = post.mock.calls[0]!;
-    expect(firstPath).toBe("/transfers/intent");
+    expect(firstPath).toBe("/transfers/own/intent");
     expect(firstOpts.body).toEqual({
-      sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
       amount: { amount: "100.00", currency: "EUR" },
-      amountSide: "SOURCE",
+      side: "SELL",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
     expect(firstOpts.idempotencyKey).toBeUndefined();
 
     const [secondPath, secondOpts] = post.mock.calls[1]!;
     expect(secondPath).toBe("/transfers/own");
-    expect(secondOpts.body).toEqual({ hash: "h_42" });
+    expect(secondOpts.body).toEqual({
+      sourceAccountId: "acc1",
+      targetAccountId: "acc2",
+      quote: intent.quote,
+      hash: intent.hash,
+      fees: intent.fees,
+    });
     expect(secondOpts.idempotencyKey).toMatch(UUID_V4_RE);
 
     expect(result.intent).toEqual(intent);
-    expect(result.transfer).toEqual(transfer);
+    expect(result.transfer).toEqual(created);
     expect(result.idempotencyKey).toBe(secondOpts.idempotencyKey);
   });
 
@@ -188,14 +189,17 @@ describe("brighty_transfer_own", () => {
     const { client, post } = makeClient();
     post
       .mockResolvedValueOnce(fixtureIntent("hA"))
-      .mockResolvedValueOnce(fixtureTransfer("hA"))
+      .mockResolvedValueOnce(fixtureCreated())
       .mockResolvedValueOnce(fixtureIntent("hB"))
-      .mockResolvedValueOnce(fixtureTransfer("hB"));
+      .mockResolvedValueOnce(fixtureCreated());
 
     const args = transferOwn.inputSchema.parse({
       sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
+      targetAccountId: "acc2",
       amount: { amount: "100.00", currency: "EUR" },
+      side: "SELL",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
 
     const r1 = await runTransferOwn(client, args);
@@ -212,13 +216,16 @@ describe("brighty_transfer_own", () => {
 
     const args = transferOwn.inputSchema.parse({
       sourceAccountId: "acc1",
-      destinationAccountId: "acc2",
+      targetAccountId: "acc2",
       amount: { amount: "100.00", currency: "EUR" },
+      side: "SELL",
+      sourceCurrency: "EUR",
+      targetCurrency: "USD",
     });
 
     await expect(runTransferOwn(client, args)).rejects.toThrow("intent failed");
     expect(post).toHaveBeenCalledTimes(1);
-    expect(post.mock.calls[0]![0]).toBe("/transfers/intent");
+    expect(post.mock.calls[0]![0]).toBe("/transfers/own/intent");
   });
 
   it("rejects a client-supplied idempotencyKey at parse time (intent re-fetch makes replay unsafe)", () => {
@@ -230,8 +237,11 @@ describe("brighty_transfer_own", () => {
     expect(() =>
       transferOwn.inputSchema.parse({
         sourceAccountId: "acc1",
-        destinationAccountId: "acc2",
+        targetAccountId: "acc2",
         amount: { amount: "100.00", currency: "EUR" },
+        side: "SELL",
+        sourceCurrency: "EUR",
+        targetCurrency: "USD",
         idempotencyKey: "client-supplied-uuid",
       }),
     ).toThrow();

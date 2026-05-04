@@ -43,7 +43,7 @@ describe("runLogin", () => {
 
     expect(fetchImpl).toHaveBeenCalledTimes(1);
     const [url, init] = fetchImpl.mock.calls[0]!;
-    expect(String(url)).toBe("https://api.brighty.app/me");
+    expect(String(url)).toBe("https://api.brighty.app/business/v1/accounts");
     const headers = init!.headers as Headers;
     expect(headers.get("authorization")).toBe("Bearer super-secret-1234");
 
@@ -172,6 +172,6 @@ describe("runLogin", () => {
     });
 
     const [url] = fetchImpl.mock.calls[0]!;
-    expect(String(url)).toBe("https://staging.api.brighty.app/me");
+    expect(String(url)).toBe("https://staging.api.brighty.app/accounts");
   });
 });

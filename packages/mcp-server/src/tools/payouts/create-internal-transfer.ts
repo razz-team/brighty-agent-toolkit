@@ -2,7 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 
 import type { BrightyClient } from "../../api/client.js";
-import type { Account, PayoutTransfer } from "../../types/brighty.js";
+import type { Account, TransferPostponedResponse } from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 
 const moneySchema = z.object({
@@ -17,43 +17,34 @@ const moneySchema = z.object({
     .describe("ISO-4217 currency or supported crypto ticker, e.g. EUR or BTC."),
 });
 
-// NOTE: Top-level schema MUST be a plain z.object so registerAllTools can
-// access `tool.inputSchema.shape`. Mutual-exclusion of recipientAccountId vs
-// recipientTag is enforced at runtime in execute() instead of via .refine().
 export const createInternalTransferInputSchema = z.object({
   payoutId: z
     .string()
     .min(1)
-    .describe("Brighty payout id (in DRAFT) the transfer will be added to."),
+    .describe("Brighty payout id (in CREATED state) the transfer will be added to."),
   sourceAccountId: z.string().min(1).describe("Brighty account id the funds come from."),
   amount: moneySchema.describe(
     "Amount and currency to send. Currency must match the source account's currency; this tool does not perform FX.",
   ),
-  recipientAccountId: z
+  receiverUsername: z
     .string()
     .min(1)
-    .optional()
     .describe(
-      "Destination Brighty account id. Provide exactly one of recipientAccountId or recipientTag.",
+      "Recipient's Brighty username (the @-tag on the recipient's profile). Not a customer/account id.",
     ),
-  recipientTag: z
-    .string()
-    .min(1)
-    .optional()
-    .describe(
-      "Recipient's Brighty tag (e.g. '@alice'). Provide exactly one of recipientAccountId or recipientTag.",
-    ),
-  reference: z
+  comment: z
     .string()
     .min(1)
     .max(140)
     .optional()
-    .describe("Optional payment reference shown on both sides."),
+    .describe("Optional free-form comment shown on both sides."),
   idempotencyKey: z
     .string()
     .min(1)
     .optional()
-    .describe("Optional client-supplied idempotency key. A UUIDv4 is generated when omitted."),
+    .describe(
+      "Client-supplied idempotency key. The Brighty API requires one — a UUIDv4 is generated when omitted. Reuse the same key on retries to avoid duplicate transfers.",
+    ),
 });
 
 export type CreateInternalTransferArgs = z.infer<typeof createInternalTransferInputSchema>;
@@ -61,17 +52,11 @@ export type CreateInternalTransferArgs = z.infer<typeof createInternalTransferIn
 export async function runCreateInternalTransfer(
   client: BrightyClient,
   args: CreateInternalTransferArgs,
-): Promise<{ transfer: PayoutTransfer; idempotencyKey: string }> {
-  const hasAccount = args.recipientAccountId !== undefined;
-  const hasTag = args.recipientTag !== undefined;
-  if (hasAccount === hasTag) {
-    throw new Error("Provide exactly one of recipientAccountId or recipientTag.");
-  }
-
+): Promise<{ transfer: TransferPostponedResponse; idempotencyKey: string }> {
   const source = await client.get<Account>(`/accounts/${encodeURIComponent(args.sourceAccountId)}`);
-  if (source.currency !== args.amount.currency) {
+  if (source.balance.currency !== args.amount.currency) {
     throw new Error(
-      `Internal transfer currency mismatch: source account ${args.sourceAccountId} is ${source.currency}, transfer amount is ${args.amount.currency}. Use brighty_transfer_intent for FX.`,
+      `Internal transfer currency mismatch: source account ${args.sourceAccountId} is ${source.balance.currency}, transfer amount is ${args.amount.currency}. Use brighty_transfer_intent for FX.`,
     );
   }
 
@@ -79,18 +64,13 @@ export async function runCreateInternalTransfer(
   const body: Record<string, unknown> = {
     sourceAccountId: args.sourceAccountId,
     amount: args.amount,
+    receiverUsername: args.receiverUsername,
   };
-  if (args.recipientAccountId !== undefined) {
-    body.recipientAccountId = args.recipientAccountId;
-  }
-  if (args.recipientTag !== undefined) {
-    body.recipientTag = args.recipientTag;
-  }
-  if (args.reference !== undefined) {
-    body.reference = args.reference;
+  if (args.comment !== undefined) {
+    body.comment = args.comment;
   }
 
-  const transfer = await client.post<PayoutTransfer>(
+  const transfer = await client.post<TransferPostponedResponse>(
     `/payouts/${encodeURIComponent(args.payoutId)}/transfers/internal`,
     { body, idempotencyKey },
   );
@@ -101,7 +81,7 @@ export async function runCreateInternalTransfer(
 export const createInternalTransfer = defineBrightyTool({
   name: "brighty_create_internal_transfer",
   description:
-    "Add an internal transfer (Brighty-to-Brighty within the same business or to another Brighty user via @tag) to a DRAFT payout. The source account's currency must match the transfer amount currency; for FX between own accounts use brighty_transfer_intent + brighty_transfer_own instead. Provide exactly one of recipientAccountId or recipientTag. Generates a UUIDv4 idempotency key when one is not supplied.",
+    "Add an internal transfer (Brighty-to-Brighty) to a payout. Recipient is identified by `receiverUsername` (the @-tag on the recipient's Brighty profile). The source account's currency must match the transfer amount currency; for FX between own accounts use brighty_transfer_intent + brighty_transfer_own. Idempotency-Key is required by the API and auto-generated as UUIDv4 when not supplied. Returns { transfer: { id, createdAt }, idempotencyKey }.",
   inputSchema: createInternalTransferInputSchema,
   execute: runCreateInternalTransfer,
 });

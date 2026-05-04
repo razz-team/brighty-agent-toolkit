@@ -66,7 +66,10 @@ export async function validateStartupAuth(opts: StartupAuthOptions = {}): Promis
     ...(opts.fetch ? { fetch: opts.fetch } : {}),
   });
   try {
-    await client.get("/me");
+    // Brighty Business API has no dedicated /me or /whoami endpoint — list
+    // accounts is the lightest authenticated GET that returns 401 on bad
+    // tokens and 200 on valid ones.
+    await client.get("/accounts");
     log(`[brighty-mcp] auth OK (key ${masked})`);
   } catch (err) {
     if (err instanceof BrightyApiError && err.status === 401) {

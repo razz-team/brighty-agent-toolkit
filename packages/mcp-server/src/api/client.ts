@@ -1,6 +1,11 @@
 import { getApiKey } from "../auth.js";
 
-export const DEFAULT_BASE_URL = "https://api.brighty.app";
+// All Brighty Business API endpoints live under /business/v1. Keeping the
+// version path in the base URL means tool handlers can write paths like
+// "/accounts" without having to remember the prefix on every call.
+// Override the full URL (including /business/v1) via BRIGHTY_API_URL — e.g.
+// "https://api.brighty.codes/business/v1" for the dev environment.
+export const DEFAULT_BASE_URL = "https://api.brighty.app/business/v1";
 
 export type FetchLike = typeof fetch;
 
@@ -45,7 +50,12 @@ export interface RequestOptions {
 }
 
 function resolveBaseUrl(explicit: string | undefined): string {
-  const raw = explicit ?? process.env.BRIGHTY_API_URL ?? DEFAULT_BASE_URL;
+  // Treat empty string the same as unset — MCP clients that substitute
+  // `${BRIGHTY_API_URL}` may pass through an empty value when the var is
+  // unset in the parent shell, and we must fall back to the default rather
+  // than throw on `new URL("")`.
+  const fromEnv = process.env.BRIGHTY_API_URL?.trim();
+  const raw = explicit?.trim() || (fromEnv && fromEnv.length > 0 ? fromEnv : DEFAULT_BASE_URL);
   return raw.replace(/\/+$/, "");
 }
 
