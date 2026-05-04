@@ -37,11 +37,12 @@ The CLI prompts you to:
      changed default behaviour). Reserve for `1.0.0` and beyond;
      while we're `0.x` use minor for breaks and put the word
      "BREAKING" at the start of the summary.
-3. Write a summary. This text lands in `CHANGELOG.md` and the GitHub
-   Release notes verbatim. Write it the way you want a future user
-   to read it — what changed, why, what they need to do (if
-   anything). One to three sentences is usually right. No "various
-   improvements".
+3. Write a summary. This text lands in that package's
+   `CHANGELOG.md` (e.g. `packages/mcp-server/CHANGELOG.md`) and in
+   the GitHub Release notes verbatim. Write it the way you want a
+   future user to read it — what changed, why, what they need to do
+   (if anything). One to three sentences is usually right. No
+   "various improvements".
 
 The CLI writes a markdown file to `.changeset/<random-name>.md`.
 **Commit it with the rest of your PR.**
@@ -59,13 +60,18 @@ behaves differently depending on what's pending:
 
 It opens or updates a "**chore: version packages**" PR. That PR:
 
-- Bumps `packages/mcp-server/package.json` per the queued changesets.
-- Updates `CHANGELOG.md` with the queued summaries (with PR links,
-  thanks to `@changesets/changelog-github`).
-- Runs `scripts/sync-versions.mjs`, which propagates the new version
-  to `.mcp.json`, `.claude-plugin/plugin.json`, the `SERVER_VERSION`
-  constant in `src/index.ts`, the root `package.json`, and the
-  `version` field in every `skills/*/SKILL.md` frontmatter.
+- Bumps `packages/mcp-server/package.json` per the queued changesets
+  (and any other workspace package's `package.json` that has a
+  changeset queued — this is a monorepo).
+- Updates each affected package's `CHANGELOG.md` (e.g.
+  [`packages/mcp-server/CHANGELOG.md`](../packages/mcp-server/CHANGELOG.md))
+  with the queued summaries, including PR links via
+  `@changesets/changelog-github`.
+- Runs `scripts/sync-versions.mjs`, which propagates the new
+  `@brighty-app/mcp-server` version to `.mcp.json`,
+  `.claude-plugin/plugin.json`, the `SERVER_VERSION` constant in
+  `src/index.ts`, the root `package.json`, and the `version` field
+  in every `skills/*/SKILL.md` frontmatter.
 - Deletes the consumed `.changeset/*.md` files.
 
 Review the PR, edit if needed, then merge.
@@ -74,15 +80,19 @@ Review the PR, edit if needed, then merge.
 
 The same workflow runs again on the merge commit. This time,
 `changesets/action` sees no pending changesets but a fresh version
-on `package.json`, so it executes `yarn release`:
+on a package, so it executes `yarn release`:
 
-1. Builds `packages/mcp-server` (`tsc`).
-2. Runs `changeset publish`, which calls `npm publish --provenance
---access public` for the bumped package — provenance attestation
-   is generated via the `id-token: write` permission and the
-   trusted-publisher config on npmjs.com.
-3. Creates a git tag `mcp-server@<version>` and a matching GitHub
-   Release with the `CHANGELOG.md` section as the release notes.
+1. `yarn build` — builds every workspace package topologically
+   (today that's just `packages/mcp-server`; future packages get
+   built automatically without changing this script).
+2. `changeset publish` — for each package whose version changed and
+   isn't `private: true`, calls `npm publish --provenance --access
+public`. Provenance attestation is generated via the
+   `id-token: write` permission and the trusted-publisher config on
+   npmjs.com.
+3. Creates a git tag per published package — e.g.
+   `@brighty-app/mcp-server@0.0.2` — and a matching GitHub Release
+   with that package's `CHANGELOG.md` section as the release notes.
 
 That's the release. Merging the version PR is the entire ceremony —
 no `git tag` step, no `npm publish` from a laptop. The npm package

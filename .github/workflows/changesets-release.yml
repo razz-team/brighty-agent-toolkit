@@ -1,18 +1,23 @@
 name: changesets-release
 
-# Two-mode workflow:
+# Two-mode workflow for this monorepo:
 #
 # 1. Push to master with queued changesets present →
-#    open or update a "version packages" PR. The PR bumps versions,
-#    updates CHANGELOG.md, and runs scripts/sync-versions.mjs to
-#    propagate the bump to .mcp.json / plugin.json / SERVER_VERSION /
-#    skills.
+#    open or update a "version packages" PR. The PR bumps the
+#    affected packages' versions, updates each affected
+#    packages/<name>/CHANGELOG.md, and runs scripts/sync-versions.mjs
+#    to propagate the @brighty-app/mcp-server version into .mcp.json /
+#    plugin.json / SERVER_VERSION / skill frontmatter.
 #
 # 2. Push to master AFTER the version-packages PR merges (no
-#    changesets pending, but bumped package.json) →
-#    `yarn release` builds the package, runs `changeset publish`
-#    which calls `npm publish --provenance --access public` per
-#    bumped package and creates the matching git tag.
+#    changesets pending, but bumped package.json on at least one
+#    workspace) →
+#    `yarn release` (= `yarn build && changeset publish`) builds every
+#    workspace topologically and publishes each non-private package
+#    whose version changed. `npm publish --provenance --access public`
+#    attaches an attestation; changesets/action also creates the
+#    `@brighty-app/<name>@<version>` tag and the matching GitHub
+#    Release per published package.
 #
 # Both modes are handled by the same `changesets/action@v1` step
 # based on whether changeset files are present or not.
