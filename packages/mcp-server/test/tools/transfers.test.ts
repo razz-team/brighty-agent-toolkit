@@ -71,7 +71,7 @@ describe("brighty_transfer_intent", () => {
     const result = await transferIntent.execute(client, args);
 
     expect(result).toEqual(intent);
-    expect(post).toHaveBeenCalledWith("/transfers/intent", {
+    expect(post).toHaveBeenCalledWith("/transfers/own/intent", {
       body: {
         sourceAccountId: "acc1",
         destinationAccountId: "acc2",
@@ -165,7 +165,7 @@ describe("brighty_transfer_own", () => {
     expect(post).toHaveBeenCalledTimes(2);
 
     const [firstPath, firstOpts] = post.mock.calls[0]!;
-    expect(firstPath).toBe("/transfers/intent");
+    expect(firstPath).toBe("/transfers/own/intent");
     expect(firstOpts.body).toEqual({
       sourceAccountId: "acc1",
       destinationAccountId: "acc2",
@@ -218,7 +218,7 @@ describe("brighty_transfer_own", () => {
 
     await expect(runTransferOwn(client, args)).rejects.toThrow("intent failed");
     expect(post).toHaveBeenCalledTimes(1);
-    expect(post.mock.calls[0]![0]).toBe("/transfers/intent");
+    expect(post.mock.calls[0]![0]).toBe("/transfers/own/intent");
   });
 
   it("rejects a client-supplied idempotencyKey at parse time (intent re-fetch makes replay unsafe)", () => {

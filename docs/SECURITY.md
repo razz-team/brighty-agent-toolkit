@@ -48,19 +48,19 @@ JSON-RPC transport.
 The CLI:
 
 1. Prompts the operator on the controlling TTY (`node:readline/promises`).
-2. Validates the key with `GET /me` against the Brighty API.
+2. Validates the key with `GET /accounts` against the Brighty API (the API has no dedicated `/me` endpoint; `/accounts` is the lightest authenticated GET).
 3. Stores it via `new Entry("brighty-mcp", "default").setPassword(key)` only
    on HTTP 200.
 4. Logs the masked key (`***1234`) and exits.
 
-A `401` from `/me` aborts without saving and tells the operator the key was
+A `401` from `/accounts` aborts without saving and tells the operator the key was
 rejected. Network errors abort without saving and surface the underlying
 error.
 
 ## Startup auth check
 
 Before opening the stdio transport, `runStdio()` calls `validateStartupAuth()`
-which performs `GET /me` with the resolved key. Outcomes:
+which performs `GET /accounts` with the resolved key. Outcomes:
 
 - 200 → log `[brighty-mcp] auth OK (key ***1234)` to stderr and proceed.
 - 401 → exit non-zero with a message naming the masked key, `BRIGHTY_API_KEY`,

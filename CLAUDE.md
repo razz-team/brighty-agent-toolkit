@@ -76,7 +76,7 @@ Marketplace consumers get updates via `/plugin marketplace update`.
 
 - The server reads the API key from `BRIGHTY_API_KEY` (env) first, then OS keychain entry `brighty-mcp / default` (via `@napi-rs/keyring`). If neither is set, startup fails with `MissingApiKeyError`.
 - There is **no MCP tool that writes credentials**. `brighty_setup` was deliberately removed — see `docs/SECURITY.md` ("Threat model: prompt-injected credential writes"). Credential mutation is an out-of-band CLI step (`brighty-mcp login`), not an LLM-callable action.
-- The login CLI validates the key against `GET /me` before saving and masks it in any output. The keychain entry is the only persisted secret; there is no `~/.brighty/config.json`.
+- The login CLI validates the key against `GET /accounts` before saving and masks it in any output (the Brighty Business API has no `/me` endpoint; `/accounts` is the lightest authenticated probe). The keychain entry is the only persisted secret; there is no `~/.brighty/config.json`.
 - Logs must mask the key. Use `maskApiKey()` from `src/auth.ts` (shows `***<last4>` only) on every surface that mentions the key.
 - Startup auth is enforced by `validateStartupAuth()` before the stdio transport opens. Bypass exists for the inspector / smoke tests via `BRIGHTY_SKIP_AUTH_CHECK=1` — never set this in real client configs.
 

@@ -165,9 +165,9 @@ describe("brighty_create_account", () => {
 });
 
 describe("brighty_terminate_account", () => {
-  it("DELETEs /accounts/:id and returns a TERMINATED status payload", async () => {
-    const { client, delete: del } = makeClient();
-    del.mockResolvedValueOnce(undefined);
+  it("POSTs /accounts/:id/terminate and returns a TERMINATED status payload", async () => {
+    const { client, post } = makeClient();
+    post.mockResolvedValueOnce(undefined);
 
     const result = await terminateAccount.execute(client, {
       accountId: "acc 1/with space",
@@ -177,7 +177,9 @@ describe("brighty_terminate_account", () => {
       accountId: "acc 1/with space",
       status: "TERMINATED",
     });
-    expect(del).toHaveBeenCalledWith(`/accounts/${encodeURIComponent("acc 1/with space")}`);
+    expect(post).toHaveBeenCalledWith(
+      `/accounts/${encodeURIComponent("acc 1/with space")}/terminate`,
+    );
   });
 });
 

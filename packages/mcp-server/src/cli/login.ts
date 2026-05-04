@@ -82,7 +82,9 @@ export async function runLogin(deps: LoginDeps = {}): Promise<LoginResult> {
   });
 
   try {
-    await client.get("/me");
+    // No /me on the Brighty Business API — /accounts doubles as the
+    // auth-validation probe (401 on bad key, 200 on valid).
+    await client.get("/accounts");
   } catch (err) {
     if (err instanceof BrightyApiError && err.status === 401) {
       errorLog(

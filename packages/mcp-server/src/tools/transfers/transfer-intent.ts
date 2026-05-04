@@ -46,7 +46,7 @@ export async function runTransferIntent(
   client: BrightyClient,
   args: TransferIntentArgs,
 ): Promise<TransferIntent> {
-  return client.post<TransferIntent>("/transfers/intent", {
+  return client.post<TransferIntent>("/transfers/own/intent", {
     body: {
       sourceAccountId: args.sourceAccountId,
       destinationAccountId: args.destinationAccountId,

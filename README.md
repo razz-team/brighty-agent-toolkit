@@ -122,9 +122,9 @@ npx -y -p @brighty-app/mcp-server brighty-mcp login
 # Brighty API key: <paste key>
 ```
 
-The CLI validates the key against `GET /me` before saving and masks it in any output. To clear the entry, delete the `brighty-mcp` item via your OS keychain UI (Keychain Access on macOS, `secret-tool` on Linux, Credential Manager on Windows).
+The CLI validates the key against `GET /accounts` (the lightest authenticated endpoint on the Brighty Business API) before saving and masks it in any output. To clear the entry, delete the `brighty-mcp` item via your OS keychain UI (Keychain Access on macOS, `secret-tool` on Linux, Credential Manager on Windows).
 
-To point the server at a non-production Brighty environment (staging, sandbox, mock), set `BRIGHTY_API_URL` (defaults to `https://api.brighty.app`).
+To point the server at a non-production Brighty environment (staging, sandbox, mock), set `BRIGHTY_API_URL` to the **full base URL including the API version path** — defaults to `https://api.brighty.app/business/v1`. Example for the dev environment: `BRIGHTY_API_URL=https://api.brighty.codes/business/v1`.
 
 ## Repository structure
 

@@ -1,6 +1,11 @@
 import { getApiKey } from "../auth.js";
 
-export const DEFAULT_BASE_URL = "https://api.brighty.app";
+// All Brighty Business API endpoints live under /business/v1. Keeping the
+// version path in the base URL means tool handlers can write paths like
+// "/accounts" without having to remember the prefix on every call.
+// Override the full URL (including /business/v1) via BRIGHTY_API_URL — e.g.
+// "https://api.brighty.codes/business/v1" for the dev environment.
+export const DEFAULT_BASE_URL = "https://api.brighty.app/business/v1";
 
 export type FetchLike = typeof fetch;
 
