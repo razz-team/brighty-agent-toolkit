@@ -66,13 +66,44 @@ Codified in [`CLAUDE.md`](./CLAUDE.md). Highlights:
 5. Add tests under `packages/mcp-server/test/tools/<domain>.test.ts`
    that mock the client and assert the URL, body, query, and headers.
 
+## Versioning
+
+Every PR that changes the published package needs a changeset. Add it
+with `yarn changeset` — the CLI prompts for bump kind (`patch` /
+`minor` / `major`) and a summary. Commit the resulting
+`.changeset/*.md` file with the rest of your PR.
+
+Doc-only and workflow-only PRs don't need a changeset. See
+[`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for the full workflow,
+including what the post-merge "version packages" PR does and when
+you'll see it.
+
 ## Releasing
 
-The `release-mcp.yml` workflow handles npm publish with provenance on
-any tag matching `mcp-server-v*`. See
-[`docs/SECURITY.md`](./docs/SECURITY.md) and the workflow itself for
-the full release procedure. Don't manually `npm publish` after the
-first preview — the workflow is the canonical path.
+The release flow is two-staged on purpose:
+
+1. **changesets-release workflow** opens a "version packages" PR that
+   bumps `packages/mcp-server/package.json`, updates `CHANGELOG.md`,
+   and runs `scripts/sync-versions.mjs` to propagate the bump to
+   `.mcp.json`, `plugin.json`, `SERVER_VERSION`, and skill
+   frontmatter. Review and merge that PR like a normal one.
+2. **release-mcp.yml workflow** fires on tag pushes matching
+   `mcp-server-v*`. After the version PR lands on master, the
+   maintainer cuts the tag manually:
+
+   ```sh
+   git checkout master && git pull
+   PKG_VERSION=$(node -p "require('./packages/mcp-server/package.json').version")
+   git tag "mcp-server-v${PKG_VERSION}"
+   git push origin "mcp-server-v${PKG_VERSION}"
+   ```
+
+   The tag push triggers `npm publish --provenance --access public`
+   via OIDC trusted publisher and creates the GitHub Release.
+
+Don't manually `npm publish` after the first preview — the workflow
+is the canonical path. See [`docs/SECURITY.md`](./docs/SECURITY.md)
+and [`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for details.
 
 ## What we won't accept
 
