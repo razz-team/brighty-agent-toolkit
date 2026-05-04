@@ -12,9 +12,22 @@ Specialized agents and slash commands for common workflows are planned for 0.1 �
 
 ## Quick start
 
-> **v0.1 status:** `@brighty-app/mcp-server` is not yet on npm and the plugin is not yet on the Claude Code marketplace. The install path that works today is the local checkout below; the marketplace and ClawHub flows activate with the v0.1 release.
+> **Status:** `0.0.1` preview is published to npm as `@brighty-app/mcp-server` and the plugin is installable from this GitHub repo as a Claude Code marketplace. ClawHub publishing of individual skills is on the roadmap, not done.
 
-### Local checkout (v0.1)
+Get a Brighty API key from the [Brighty Business Portal](https://business.brighty.app/account/business) — Owner role only. Set it as the `BRIGHTY_API_KEY` environment variable, or store it once in the OS keychain via the bundled login CLI (see [Authentication](#authentication)).
+
+### Claude Code / Claude Desktop (recommended)
+
+```
+/plugin marketplace add razz-team/brighty-agent-toolkit
+/plugin install brighty@brighty-agent-toolkit
+```
+
+This registers the stdio MCP server (via `npx -y -p @brighty-app/mcp-server@0.0.1 brighty-mcp` — the `-p` form is required because the package ships two bins, `brighty-mcp` and `brighty-mcp-login`, neither of which matches the unscoped package name) and installs all four skills. The bundled `.mcp.json` pins the server version to match the plugin manifest version, so the npm dist-tag does not float independently of the plugin release. Bump both together when cutting a new plugin version.
+
+`BRIGHTY_API_KEY` and (optionally) `BRIGHTY_API_URL` are forwarded from the environment of whatever shell you launch Claude Code from — set them before launch.
+
+### Local checkout (development / unpublished features)
 
 ```
 git clone https://github.com/razz-team/brighty-agent-toolkit
@@ -24,36 +37,16 @@ yarn install
 yarn workspace @brighty-app/mcp-server build
 ```
 
-Then point your MCP client `command` at `node /absolute/path/to/brighty-agent-toolkit/packages/mcp-server/dist/index.js`. Provide your Brighty API key via the `BRIGHTY_API_KEY` environment variable, or store it once in the OS keychain by running `yarn login` from the repo root (see [Authentication](#authentication) for the global-install and plugin-flow alternatives). Get the key from the [Brighty Business Portal](https://business.brighty.app/account/business) (Owner role only).
+Then point your MCP client `command` at `node /absolute/path/to/brighty-agent-toolkit/packages/mcp-server/dist/index.js`.
 
-To copy skills only (any AgentSkills-compatible client — Codex, Cursor, OpenClaw, etc.):
+### Skills only — any AgentSkills-compatible client
 
 ```
 cp -r skills/* ~/.claude/skills/
 # or ~/.codex/skills/, ~/.agents/skills/, etc.
 ```
 
-### Claude Code / Claude Desktop (after v0.1 release)
-
-```
-/plugin marketplace add razz-team/brighty-agent-toolkit
-/plugin install brighty@brighty-agent-toolkit
-```
-
-This registers the local stdio MCP server (via `npx -y -p @brighty-app/mcp-server@0.1.0 brighty-mcp` — the `-p` form is required because the package ships two bins, `brighty-mcp` and `brighty-mcp-login`, neither of which matches the unscoped package name) and installs all four skills. The bundled `.mcp.json` pins the server version to match the plugin manifest version, so the npm dist-tag does not float independently of the plugin release. Bump both together when cutting a new plugin version.
-
-### OpenClaw (ClawHub) (after skill publish)
-
-Skills are published individually. Install only what you need:
-
-```
-clawhub install brighty-banking
-clawhub install brighty-payouts
-clawhub install brighty-invoice-pay
-clawhub install brighty-cards
-```
-
-The MCP server is not auto-configured on OpenClaw — add it manually via your gateway config.
+The skills assume the Brighty MCP server is reachable over stdio — set it up in your client first, then drop the skill files in.
 
 ## What's inside
 
@@ -161,12 +154,11 @@ CI runs the above on every PR. The cross-reference check between skill instructi
 
 ## Contributing
 
-PRs welcome. Before submitting:
+See [`CONTRIBUTING.md`](./CONTRIBUTING.md) for the full guide. Short version: every PR has to keep the `validate-plugin` / `validate` / `check-tools` invariants green, every new MCP tool or schema change is cross-checked against the [Brighty OpenAPI spec](https://apidocs.brighty.app/openapi.json), and credential-mutating tools are off-limits (see [`docs/SECURITY.md`](./docs/SECURITY.md)).
 
-1. `yarn validate-plugin && yarn validate && yarn check-tools` must pass locally.
-2. `yarn workspace @brighty-app/mcp-server test` must pass.
-3. Keep each `SKILL.md` under 500 lines. Move details into `skills/<name>/references/`.
-4. No obfuscated scripts in `skills/*/scripts/` — they fail VirusTotal scanning on ClawHub publication and erode trust.
+## Changelog
+
+[`CHANGELOG.md`](./CHANGELOG.md) — Keep a Changelog format. Bump notes for each release plus an `[Unreleased]` section for what's queued.
 
 ## Security
 
