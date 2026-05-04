@@ -1,5 +1,11 @@
 # brighty-agent-toolkit
 
+[![npm](https://img.shields.io/npm/v/@brighty-app/mcp-server?label=%40brighty-app%2Fmcp-server)](https://www.npmjs.com/package/@brighty-app/mcp-server)
+[![CI](https://github.com/razz-team/brighty-agent-toolkit/actions/workflows/ci.yml/badge.svg?branch=master)](https://github.com/razz-team/brighty-agent-toolkit/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
+[![Node](https://img.shields.io/node/v/@brighty-app/mcp-server)](./packages/mcp-server/package.json)
+[![AgentSkills](https://img.shields.io/badge/AgentSkills-spec-blueviolet)](https://agentskills.io/specification)
+
 Banking infrastructure for AI agents. Use [Brighty](https://brighty.app) from Claude, Codex, Cursor, OpenClaw, or any MCP-compatible client to open accounts, issue cards, send SEPA/SWIFT payments, run mass payouts, and pay invoices — all through natural language.
 
 This repository ships three things in one place:
