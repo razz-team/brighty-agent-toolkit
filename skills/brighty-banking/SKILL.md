@@ -10,7 +10,7 @@ description: |
   account, invite teammate, add member, remove member, team access.
 license: MIT
 metadata:
-  version: "0.0.1"
+  version: "0.0.2"
   author: brighty
 ---
 
