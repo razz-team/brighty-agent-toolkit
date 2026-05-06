@@ -46,6 +46,14 @@ Other notable changes:
   workflow that opens version-packages PRs and publishes on merge
   (with provenance via OIDC). The previous tag-triggered
   `release-mcp.yml` is gone.
+- **Node engine requirement raised to `>=24`.** Earlier 0.0.1 declared
+  `>=20`, which no longer matches the dev/CI baseline. Operators on
+  Node 20–23 must upgrade before installing.
+- Runtime dependency **zod bumped from 3.25 to 4.4.** The MCP SDK
+  (1.29) supports both, so this only matters if you're consuming the
+  emitted types directly — tool input schemas keep the same shape.
+- All `package.json` deps and devDeps pinned to exact versions
+  (no `^` ranges) for reproducible installs.
 
 All four `SKILL.md` files rewritten to reflect the corrected API
 shapes, error envelope, and lifecycle states.
