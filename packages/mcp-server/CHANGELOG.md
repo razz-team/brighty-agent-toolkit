@@ -1,5 +1,14 @@
 # @brighty-app/mcp-server
 
+## 0.0.3
+
+### Patch Changes
+
+- [`7b06513`](https://github.com/razz-team/brighty-agent-toolkit/commit/7b0651395a9c80b4cddb04ebb6b4438fa860a585) Thanks [@olegshilov](https://github.com/olegshilov)! - No-op patch bump to verify the formatted-release flow end-to-end after
+  the `yarn format` step landed in the `version` script. No tool, type,
+  or runtime behaviour changes — the published artifact is identical to
+  0.0.2 modulo metadata.
+
 ## 0.0.2
 
 ### Patch Changes

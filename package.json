@@ -1,6 +1,6 @@
 {
   "name": "brighty-agent-toolkit",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "private": true,
   "description": "Brighty banking and payments for AI agents — open accounts, run mass payouts, issue cards, and pay invoices through natural language. Ships an MCP server plus skills that teach the agent how to use it.",
   "license": "MIT",

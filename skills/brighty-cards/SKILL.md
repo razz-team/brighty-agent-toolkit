@@ -12,7 +12,7 @@ description: |
   limit, spending limit, card design.
 license: MIT
 metadata:
-  version: "0.0.2"
+  version: "0.0.3"
   author: brighty
 ---
 
