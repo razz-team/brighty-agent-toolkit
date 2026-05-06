@@ -4,7 +4,7 @@ import type { AddMembersResponse } from "../../types/brighty.js";
 import { defineBrightyTool } from "../tool.js";
 
 const memberDataSchema = z.object({
-  email: z.string().email().describe("Email address that will receive the Brighty invitation."),
+  email: z.email().describe("Email address that will receive the Brighty invitation."),
   role: z
     .enum(["MEMBER", "VIEWER", "PAYER", "ADMIN", "OWNER"])
     .describe(
