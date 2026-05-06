@@ -40,8 +40,10 @@ Other notable changes:
   object, `plugin.json` uses single string paths for `skills` and
   `mcpServers`. Both fixes were required by the current Claude Code
   marketplace validator.
-- `ci.yml` moved to self-hosted `[Linux, X64, large]` runners with
-  `actions/checkout@v6`, matching the team xyz-web convention.
+- `ci.yml` and `changesets-release.yml` run on GitHub-hosted
+  `ubuntu-latest` with `actions/checkout@v6` and explicit
+  `actions/setup-node@v4` pinning to Node 24. Yarn comes from
+  corepack (the `packageManager` field in root `package.json`).
 - Release pipeline simplified to a single `changesets-release.yml`
   workflow that opens version-packages PRs and publishes on merge
   (with provenance via OIDC). The previous tag-triggered

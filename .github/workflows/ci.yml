@@ -18,26 +18,26 @@ concurrency:
 
 permissions:
   contents: read
-  packages: read
 
 jobs:
   build:
-    runs-on: [self-hosted, Linux, X64, large]
+    runs-on: ubuntu-latest
     env:
-      NPM_GITHUB_TOKEN: you-dont-need-this
       CI: true
     steps:
       - name: checkout
         uses: actions/checkout@v6
 
-      - name: update .yarnrc.yml for GitHub Packages auth
-        run: |
-          yarn config set 'npmRegistries["//npm.pkg.github.com"].npmAuthToken' '${NPM_GITHUB_TOKEN}'
+      - name: setup node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      - name: enable corepack
+        run: corepack enable
 
       - name: install
         run: yarn install --immutable
-        env:
-          NPM_GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: validate plugin manifest
         run: yarn validate-plugin
