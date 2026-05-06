@@ -18,7 +18,6 @@
   `{errorCode, name, description, params}` error envelope.
 
   Other notable changes:
-
   - `DEFAULT_BASE_URL` now bakes `/business/v1` into the base path.
     Operators overriding via `BRIGHTY_API_URL` must include the version
     path — e.g. `https://api.brighty.codes/business/v1` for the dev
