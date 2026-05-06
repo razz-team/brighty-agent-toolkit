@@ -65,10 +65,14 @@ jobs:
       - name: enable corepack
         run: corepack enable
 
+      - name: resolve yarn cache path
+        id: yarn-cache
+        run: echo "path=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
       - name: cache yarn
         uses: actions/cache@v5
         with:
-          path: .yarn/cache
+          path: ${{ steps.yarn-cache.outputs.path }}
           key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
           restore-keys: |
             yarn-${{ runner.os }}-
