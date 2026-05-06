@@ -13,7 +13,7 @@ import type { BrightyTool } from "./tools/tool.js";
 import { transfersTools } from "./tools/transfers/index.js";
 
 const SERVER_NAME = "brighty-mcp-server";
-const SERVER_VERSION = "0.0.1";
+const SERVER_VERSION = "0.0.2";
 
 export const ALL_TOOLS: BrightyTool[] = [
   ...accountsTools,
