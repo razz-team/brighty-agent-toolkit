@@ -83,8 +83,8 @@ jobs:
       - name: open version PR or publish
         uses: changesets/action@v1
         with:
-          version: yarn version
-          publish: yarn release
+          version: yarn run version
+          publish: yarn run release
           title: "chore: version packages"
           commit: "chore: version packages"
           createGithubReleases: true
