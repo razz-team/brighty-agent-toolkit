@@ -93,9 +93,10 @@ GitHub Release.
 No manual `git tag`, no manual `npm publish`. Merging the version PR
 is the entire ceremony.
 
-Don't manually `npm publish` after the first preview — the workflow
-is the canonical path. See [`docs/SECURITY.md`](./docs/SECURITY.md)
-and [`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for details.
+Don't manually `npm publish` — the workflow is the canonical path,
+and going around it skips the provenance attestation. See
+[`docs/SECURITY.md`](./docs/SECURITY.md) and
+[`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for details.
 
 ## What we won't accept
 

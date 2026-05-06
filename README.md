@@ -18,7 +18,7 @@ Specialized agents and slash commands for common workflows are planned for 0.1 �
 
 ## Quick start
 
-> **Status:** `0.0.1` preview is published to npm as `@brighty-app/mcp-server` and the plugin is installable from this GitHub repo as a Claude Code marketplace. ClawHub publishing of individual skills is on the roadmap, not done.
+> **Status:** Published to npm as `@brighty-app/mcp-server` and installable as a Claude Code plugin from this GitHub repo. ClawHub publishing of individual skills is on the roadmap, not done.
 
 Get a Brighty API key from the [Brighty Business Portal](https://business.brighty.app/account/business) — Owner role only. Set it as the `BRIGHTY_API_KEY` environment variable, or store it once in the OS keychain via the bundled login CLI (see [Authentication](#authentication)).
 
@@ -29,7 +29,7 @@ Get a Brighty API key from the [Brighty Business Portal](https://business.bright
 /plugin install brighty@brighty-agent-toolkit
 ```
 
-This registers the stdio MCP server (via `npx -y -p @brighty-app/mcp-server@0.0.1 brighty-mcp` — the `-p` form is required because the package ships two bins, `brighty-mcp` and `brighty-mcp-login`, neither of which matches the unscoped package name) and installs all four skills. The bundled `.mcp.json` pins the server version to match the plugin manifest version, so the npm dist-tag does not float independently of the plugin release. Bump both together when cutting a new plugin version.
+This registers the stdio MCP server (via `npx -y -p @brighty-app/mcp-server@<pinned-version> brighty-mcp` — the `-p` form is required because the package ships two bins, `brighty-mcp` and `brighty-mcp-login`, neither of which matches the unscoped package name) and installs all four skills. The bundled `.mcp.json` pins the server version to match the plugin manifest version, so the npm dist-tag does not float independently of the plugin release. The two are kept in sync automatically by `scripts/sync-versions.mjs` when changesets bumps the package — see [`docs/CHANGESETS.md`](docs/CHANGESETS.md).
 
 `BRIGHTY_API_KEY` and (optionally) `BRIGHTY_API_URL` are forwarded from the environment of whatever shell you launch Claude Code from — set them before launch.
 
@@ -54,6 +54,18 @@ cp -r skills/* ~/.claude/skills/
 
 The skills assume the Brighty MCP server is reachable over stdio — set it up in your client first, then drop the skill files in.
 
+### Ask your agent to install it
+
+If you'd rather have your agent run the install for you, paste this prompt:
+
+```
+Install Brighty into this client. Read
+https://github.com/razz-team/brighty-agent-toolkit/blob/master/AGENTS.md
+and follow the path matching the client we're in.
+```
+
+[`AGENTS.md`](./AGENTS.md) walks the agent through Claude Code, generic MCP clients, skill-only setups, and credential persistence.
+
 ## What's inside
 
 ### Skills
@@ -73,12 +85,10 @@ Each skill is self-contained and installs independently. They all assume the Bri
 
 ## Alternative installation
 
-### Local stdio MCP only (no plugin, after npm publish)
-
-Once `@brighty-app/mcp-server` is published:
+### Local stdio MCP only (no plugin)
 
 ```
-npm install -g @brighty-app/mcp-server@0.0.1
+npm install -g @brighty-app/mcp-server@latest
 ```
 
 Then add to your client config (e.g., `claude_desktop_config.json`):
@@ -94,7 +104,7 @@ Then add to your client config (e.g., `claude_desktop_config.json`):
 }
 ```
 
-Pin the version explicitly (`@0.0.1`) so the global install does not pick up newer majors when you upgrade the plugin.
+For reproducible installs, pin the version explicitly instead of `@latest` — e.g. `@brighty-app/mcp-server@0.0.2`. The `npx -y -p ...` form in the plugin path always pins to a specific version via `.mcp.json`.
 
 ## Authentication
 
@@ -174,9 +184,7 @@ Report security issues to security@brighty.app, not via public issues.
 
 ## Roadmap
 
-- **0.0.1 (current preview):** stdio MCP server (24 tools), four skills, plugin manifest with skills only.
-- **0.1:** specialized agents (`agents/bookkeeper.md`, `agents/payroll-runner.md`) and slash commands (`commands/pay-invoice.md`). The directory layout is reserved; manifest entries land once the agents are authored.
-- **Later:** ClawHub publishing for individual skills, MCP catalog submissions (Smithery, glama.ai).
+See [`docs/ROADMAP.md`](./docs/ROADMAP.md) for what's shipped, what's planned for the next release, and what's deferred.
 
 ## License
 
