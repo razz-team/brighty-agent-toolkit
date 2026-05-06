@@ -24,7 +24,7 @@
     "dev:server": "yarn workspace @brighty-app/mcp-server dev",
     "login": "yarn workspace @brighty-app/mcp-server exec brighty-mcp-login",
     "changeset": "changeset",
-    "version": "changeset version && node scripts/sync-versions.mjs",
+    "version": "changeset version && node scripts/sync-versions.mjs && yarn format",
     "release": "yarn build && changeset publish"
   },
   "devDependencies": {
