@@ -41,9 +41,11 @@ Other notable changes:
   `mcpServers`. Both fixes were required by the current Claude Code
   marketplace validator.
 - `ci.yml` and `changesets-release.yml` run on GitHub-hosted
-  `ubuntu-latest` with `actions/checkout@v6` and explicit
-  `actions/setup-node@v4` pinning to Node 24. Yarn comes from
-  corepack (the `packageManager` field in root `package.json`).
+  `ubuntu-latest` with `actions/checkout@v6` and `actions/setup-node@v6`,
+  reading the Node version from `.nvmrc` (currently `24.15`). Yarn
+  comes from corepack (the `packageManager` field in root
+  `package.json`); the Yarn Berry cache (`.yarn/cache`) is restored
+  across runs via `cache: yarn`.
 - Release pipeline simplified to a single `changesets-release.yml`
   workflow that opens version-packages PRs and publishes on merge
   (with provenance via OIDC). The previous tag-triggered
