@@ -38,7 +38,7 @@ These must hold across every change. CI enforces all of them:
 
 1. Add the handler in `packages/mcp-server/src/tools/<domain>/<tool-name>.ts` (one tool per file) and re-export it from `tools/<domain>/index.ts` so it lands in the domain's `*Tools` array.
 2. Update the relevant `SKILL.md` to document when and how the agent should call it. `yarn check-tools` enforces the cross-reference.
-3. Bump version in `packages/mcp-server/package.json` and `.claude-plugin/plugin.json`.
+3. Add a changeset (`yarn changeset`) describing the new tool. The version bump itself is handled by the changesets workflow — don't hand-edit `package.json` versions. See [`docs/CHANGESETS.md`](./docs/CHANGESETS.md).
 
 ### Updating skill instructions
 
@@ -48,13 +48,26 @@ These must hold across every change. CI enforces all of them:
 
 ### Cutting a release
 
-Release workflows (`release-mcp.yml`, `release-skills.yml`, `publish-clawhub.yml`) are not implemented in v0.1 — see the Roadmap in `README.md`. Until they land, releases are manual:
+Releases are driven by [Changesets](https://github.com/changesets/changesets) — one workflow (`.github/workflows/changesets-release.yml`) opens version-packages PRs and publishes to npm with provenance on merge. The full operator step-by-step lives in [`docs/CHANGESETS.md`](./docs/CHANGESETS.md).
 
-1. Bump `version` in root `package.json`, `packages/mcp-server/package.json`, and `.claude-plugin/plugin.json`.
-2. `git tag vX.Y.Z && git push --tags`.
-3. Create a GitHub release by hand and attach skill zips if desired.
+Don't hand-bump versions in `package.json` files, `.mcp.json`, or `.claude-plugin/plugin.json` — `scripts/sync-versions.mjs` propagates the version from `packages/mcp-server/package.json` (where `changeset version` writes it) into all the other manifests and into every `SKILL.md` frontmatter.
 
-Marketplace consumers get updates via `/plugin marketplace update`.
+Marketplace consumers get plugin updates via `/plugin marketplace update`.
+
+### Keeping documentation current
+
+Doc drift is a known repeat-offender risk in this repo. When you change anything user-visible — install path, tool name, naming convention, repo visibility, removed feature, new workflow — update the relevant docs **in the same change**, not as a follow-up. The audit list:
+
+- `README.md` (top-level positioning, install snippets, status line)
+- `AGENTS.md` (the autonomous-agent install guide)
+- `CONTRIBUTING.md` (changeset rules, dev loop)
+- `CLAUDE.md` (this file — invariants, workflows, conventions)
+- `SECURITY.md` and `docs/SECURITY.md` (auth model, threat model)
+- `docs/CHANGESETS.md` (release flow)
+- Every `skills/*/SKILL.md` if a referenced tool name or workflow changed
+- `packages/mcp-server/README.md`
+
+In narrative docs prefer `@brighty-app/mcp-server@latest` over hardcoded version pins — `scripts/sync-versions.mjs` owns the canonical version in JSON manifests, but freezing a version in prose creates churn. Pin in narrative only when the example is illustrating a specific historical version.
 
 ## Conventions
 

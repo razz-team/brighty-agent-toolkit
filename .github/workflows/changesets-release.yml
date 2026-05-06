@@ -1,0 +1,92 @@
+name: changesets-release
+
+# Two-mode workflow for this monorepo:
+#
+# 1. Push to master with queued changesets present →
+#    open or update a "version packages" PR. The PR bumps the
+#    affected packages' versions, updates each affected
+#    packages/<name>/CHANGELOG.md, and runs scripts/sync-versions.mjs
+#    to propagate the @brighty-app/mcp-server version into .mcp.json /
+#    plugin.json / SERVER_VERSION / skill frontmatter.
+#
+# 2. Push to master AFTER the version-packages PR merges (no
+#    changesets pending, but bumped package.json on at least one
+#    workspace) →
+#    `yarn release` (= `yarn build && changeset publish`) builds every
+#    workspace topologically and publishes each non-private package
+#    whose version changed. `npm publish --provenance --access public`
+#    attaches an attestation; changesets/action also creates the
+#    `@brighty-app/<name>@<version>` tag and the matching GitHub
+#    Release per published package.
+#
+# Both modes are handled by the same `changesets/action@v1` step
+# based on whether changeset files are present or not.
+
+on:
+  push:
+    branches:
+      - master
+
+defaults:
+  run:
+    shell: bash
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  id-token: write # required for npm provenance via OIDC trusted publisher
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    env:
+      CI: true
+      # Tells `npm publish` (called by `changeset publish`) to attach a
+      # provenance statement. Requires id-token: write permission above
+      # and the workflow filename to be registered as the trusted
+      # publisher for @brighty-app/mcp-server on npmjs.com.
+      NPM_CONFIG_PROVENANCE: "true"
+    steps:
+      - name: checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+
+      - name: setup node
+        uses: actions/setup-node@v6
+        with:
+          node-version-file: ".nvmrc"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: enable corepack
+        run: corepack enable
+
+      - name: resolve yarn cache path
+        id: yarn-cache
+        run: echo "path=$(yarn config get cacheFolder)" >> "$GITHUB_OUTPUT"
+
+      - name: cache yarn
+        uses: actions/cache@v5
+        with:
+          path: ${{ steps.yarn-cache.outputs.path }}
+          key: yarn-${{ runner.os }}-${{ hashFiles('yarn.lock') }}
+          restore-keys: |
+            yarn-${{ runner.os }}-
+
+      - name: install
+        run: yarn install --immutable
+
+      - name: open version PR or publish
+        uses: changesets/action@v1
+        with:
+          version: yarn version
+          publish: yarn release
+          title: "chore: version packages"
+          commit: "chore: version packages"
+          createGithubReleases: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

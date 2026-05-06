@@ -70,7 +70,7 @@ Add this to the client's MCP config (typical filename
     "brighty": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "-p", "@brighty-app/mcp-server@0.0.1", "brighty-mcp"],
+      "args": ["-y", "-p", "@brighty-app/mcp-server@latest", "brighty-mcp"],
       "env": {
         "BRIGHTY_API_KEY": "${BRIGHTY_API_KEY}",
         "BRIGHTY_API_URL": "${BRIGHTY_API_URL}"
@@ -89,7 +89,7 @@ If the client doesn't accept `${VAR}` substitution and won't inherit
 shell env, install the package globally and reference the bin directly:
 
 ```sh
-npm install -g @brighty-app/mcp-server@0.0.1
+npm install -g @brighty-app/mcp-server@latest
 ```
 
 Then config:
@@ -117,19 +117,11 @@ directories into the client's skills path. Common locations:
 - `~/.codex/skills/`
 - `~/.agents/skills/`
 
-You can `git clone` this repo and copy them, or — once published — use
-ClawHub:
-
-```sh
-clawhub install brighty-banking
-clawhub install brighty-payouts
-clawhub install brighty-invoice-pay
-clawhub install brighty-cards
-```
-
-ClawHub publishing is **not yet done** as of `0.0.1`; check
-[`README.md`](./README.md) Roadmap before recommending the `clawhub`
-commands.
+You can `git clone` this repo and copy them. ClawHub publishing of
+individual skills is on the roadmap (see
+[`docs/ROADMAP.md`](./docs/ROADMAP.md)) — when it lands, the
+`clawhub install brighty-*` shortcut will work here. Until then,
+don't recommend it; use the copy-from-clone path.
 
 ## Persisting credentials
 

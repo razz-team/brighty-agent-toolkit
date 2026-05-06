@@ -30,7 +30,7 @@ export interface BrightyToolDefinition<TShape extends z.ZodRawShape, TResult> {
 export interface BrightyTool {
   name: string;
   description: string;
-  inputSchema: z.AnyZodObject;
+  inputSchema: z.ZodObject;
   handler: (args: any, extra?: unknown) => Promise<CallToolResult>;
   execute: (client: BrightyClient, args: any) => Promise<unknown>;
   formatResult: (result: any) => CallToolResult;

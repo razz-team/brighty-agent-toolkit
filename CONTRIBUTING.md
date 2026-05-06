@@ -66,13 +66,37 @@ Codified in [`CLAUDE.md`](./CLAUDE.md). Highlights:
 5. Add tests under `packages/mcp-server/test/tools/<domain>.test.ts`
    that mock the client and assert the URL, body, query, and headers.
 
+## Versioning
+
+Every PR that changes the published package needs a changeset. Add it
+with `yarn changeset` — the CLI prompts for bump kind (`patch` /
+`minor` / `major`) and a summary. Commit the resulting
+`.changeset/*.md` file with the rest of your PR.
+
+Doc-only and workflow-only PRs don't need a changeset. See
+[`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for the full workflow,
+including what the post-merge "version packages" PR does and when
+you'll see it.
+
 ## Releasing
 
-The `release-mcp.yml` workflow handles npm publish with provenance on
-any tag matching `mcp-server-v*`. See
-[`docs/SECURITY.md`](./docs/SECURITY.md) and the workflow itself for
-the full release procedure. Don't manually `npm publish` after the
-first preview — the workflow is the canonical path.
+One workflow drives the whole flow. After your PR with a changeset
+lands on master, `changesets-release.yml` opens a "**chore: version
+packages**" PR that bumps `packages/mcp-server/package.json`, updates
+`CHANGELOG.md`, and runs `scripts/sync-versions.mjs` to propagate the
+bump to `.mcp.json`, `plugin.json`, `SERVER_VERSION`, and skill
+frontmatter. Merge that PR — the same workflow re-runs and executes
+`yarn release`, which calls `changeset publish` (i.e. `npm publish
+--provenance --access public`) and creates the matching git tag and
+GitHub Release.
+
+No manual `git tag`, no manual `npm publish`. Merging the version PR
+is the entire ceremony.
+
+Don't manually `npm publish` — the workflow is the canonical path,
+and going around it skips the provenance attestation. See
+[`docs/SECURITY.md`](./docs/SECURITY.md) and
+[`docs/CHANGESETS.md`](./docs/CHANGESETS.md) for details.
 
 ## What we won't accept
 
